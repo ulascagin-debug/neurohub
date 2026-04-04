@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id                   String         @id @default(cuid())
+  name                 String?
+  email                String?        @unique
+  emailVerified        DateTime?
+  image                String?
+  password             String?
+  plan                 String         @default("free")
+  onboarding_completed Boolean        @default(true)
+  accounts             Account[]
+  owned                Business[]     @relation("BusinessOwner")
+  sessions             Session[]
+  businesses           UserBusiness[]
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Business {
+  id             String              @id @default(cuid())
+  name           String
+  location       String?
+  owner_id       String?
+  is_verified    Boolean             @default(false)
+  owner          User?               @relation("BusinessOwner", fields: [owner_id], references: [id])
+  chatbotConfig  ChatbotConfig?
+  integrations   IntegrationConfig[]
+  messages       Message[]
+  reservations   Reservation[]
+  reviewAnalysis ReviewAnalysis?
+  users          UserBusiness[]
+}
+
+model UserBusiness {
+  id          String   @id @default(cuid())
+  user_id     String
+  business_id String
+  role        String   @default("owner")
+  business    Business @relation(fields: [business_id], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, business_id])
+}
+
+model Reservation {
+  id            String   @id @default(cuid())
+  business_id   String
+  customer_name String
+  date          String
+  time          String
+  party_size    Int
+  status        String   @default("confirmed")
+  business      Business @relation(fields: [business_id], references: [id], onDelete: Cascade)
+}
+
+model Message {
+  id              String   @id @default(cuid())
+  business_id     String
+  platform        String
+  content         String
+  response        String?
+  user_id         String?
+  session_id      String?
+  session_status  String   @default("active")
+  has_reservation Boolean  @default(false)
+  created_at      DateTime @default(now())
+  business        Business @relation(fields: [business_id], references: [id], onDelete: Cascade)
+
+  @@index([business_id, session_id])
+  @@index([business_id, user_id, created_at])
+}
+
+model ChatbotConfig {
+  id              String   @id @default(cuid())
+  business_id     String   @unique
+  chatbot_enabled Boolean  @default(true)
+  tone            String   @default("friendly")
+  table_count     Int      @default(0)
+  menu_pdf_url    String?
+  menu            String?
+  campaigns       String?
+  address         String?
+  phone           String?
+  working_hours   String?
+  webhook_url     String?
+  business        Business @relation(fields: [business_id], references: [id], onDelete: Cascade)
+}
+
+model IntegrationConfig {
+  id                  String   @id @default(cuid())
+  business_id         String
+  platform            String
+  platform_identifier String
+  access_token        String?
+  business            Business @relation(fields: [business_id], references: [id], onDelete: Cascade)
+
+  @@unique([platform, platform_identifier])
+}
+
+model ReviewAnalysis {
+  id                       String   @id @default(cuid())
+  business_id              String   @unique
+  strengths                String?
+  weaknesses               String?
+  competitors              String?
+  suggestions              String?
+  full_report              String?
+  time_1_week              String?
+  time_1_month             String?
+  time_1_year              String?
+  competitor_weakness_count Int      @default(0)
+  updated_at               DateTime @default(now())
+  business                 Business @relation(fields: [business_id], references: [id], onDelete: Cascade)
+}
