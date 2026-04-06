@@ -9,7 +9,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Category and city are required' }, { status: 400 })
     }
 
-    const ANALYZER_URL = process.env.ANALYZER_URL || 'http://localhost:3001'
+    const ANALYZER_URL = 'http://127.0.0.1:3001'
     const location = district ? `${city}, ${district}` : city
     const searchResp = await fetch(`${ANALYZER_URL}/search`, {
       method: 'POST',
