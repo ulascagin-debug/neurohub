@@ -48,7 +48,7 @@ export default function SetupPage() {
   const [error, setError] = useState('')
 
   // Step 1: Business category
-  const [businessType, setBusinessType] = useState('')
+  const [businessTypes, setBusinessTypes] = useState<string[]>([])
 
   // Step 2: Location
   const [country, setCountry] = useState('Turkey')
@@ -71,7 +71,7 @@ export default function SetupPage() {
 
   // Step 1 → 2
   const handleStep1 = () => {
-    if (!businessType) { setError('Lütfen bir iş kolu seçin'); return }
+    if (businessTypes.length === 0) { setError('Lütfen en az bir iş kolu seçin'); return }
     setError('')
     setStep(2)
   }
@@ -95,7 +95,7 @@ export default function SetupPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          category: businessName + (businessType ? ' ' + businessType : ''),
+          category: businessName, // Aratırken sadece ismi kullan ki Google Maps kafası karışmasın
           city,
           district,
           country,
@@ -149,7 +149,7 @@ export default function SetupPage() {
         body: JSON.stringify({
           name,
           location,
-          business_type: businessType,
+          business_type: businessTypes.join(', '),
           place_id: placeId || null,
           maps_url: mapsUrl || null,
           maps_rating: rating ?? null,
@@ -178,7 +178,7 @@ export default function SetupPage() {
   if (status === 'loading') return null
 
   const totalSteps = 4
-  const categoryLabel = BUSINESS_CATEGORIES.find(c => c.value === businessType)?.label
+  const categoryLabels = businessTypes.map(val => BUSINESS_CATEGORIES.find(c => c.value === val)?.label).filter(Boolean).join(', ')
 
   return (
     <div style={{
@@ -266,14 +266,19 @@ export default function SetupPage() {
               color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem',
               textAlign: 'center', marginBottom: '20px',
             }}>
-              İşletmeniz hangi sektörde?
+              İşletmeniz hangi sektörlerde? (Birden fazla seçebilirsiniz)
             </p>
             <div className="category-grid" style={{ marginBottom: '24px' }}>
               {BUSINESS_CATEGORIES.map(cat => (
                 <div
                   key={cat.value}
-                  className={`category-card ${businessType === cat.value ? 'selected' : ''}`}
-                  onClick={() => { setBusinessType(cat.value); setError('') }}
+                  className={`category-card ${businessTypes.includes(cat.value) ? 'selected' : ''}`}
+                  onClick={() => {
+                    setBusinessTypes(prev => 
+                      prev.includes(cat.value) ? prev.filter(t => t !== cat.value) : [...prev, cat.value]
+                    )
+                    setError('')
+                  }}
                 >
                   <span className="category-icon">{cat.icon}</span>
                   <span className="category-label">{cat.label}</span>
@@ -289,14 +294,14 @@ export default function SetupPage() {
         {/* ─── Step 2: Location ─── */}
         {step === 2 && (
           <div>
-            {/* Selected category badge */}
+            {/* Selected categories badge */}
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: '6px',
               background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)',
               borderRadius: '20px', padding: '6px 14px', marginBottom: '20px',
               fontSize: '0.8rem', color: '#a5b4fc',
             }}>
-              🏷 {categoryLabel}
+              🏷 {categoryLabels}
             </div>
 
             <div style={{ marginBottom: '16px' }}>
@@ -348,7 +353,7 @@ export default function SetupPage() {
           <div>
             {/* Info badges */}
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px' }}>
-              <span style={badgeStyle}>🏷 {categoryLabel}</span>
+              <span style={badgeStyle}>🏷 {categoryLabels}</span>
               <span style={badgeStyle}>📍 {city}{district ? `, ${district}` : ''}</span>
             </div>
 
