@@ -6,7 +6,7 @@ import { useEffect, useState, useCallback } from 'react'
 const POLL_INTERVAL = 15000 // 15 seconds
 
 // Gelecekte eklenecek AI chat/öneri kısmı için kullanılacak sistem istemi:
-export const FUTURE_AI_SYSTEM_PROMPT = `Sen "Dashboard Center" isimli yönetim panelinin yetkili strateji zekasısın.
+const FUTURE_AI_SYSTEM_PROMPT = `Sen "Dashboard Center" isimli yönetim panelinin yetkili strateji zekasısın.
 Bu panel, bünyesinde Kafe, Lounge ve Bar dinamiklerini aynı anda barındıran kompleks işletmeler tarafından kullanılıyor.
 Kullanıcı sana rezervasyon ve mesajlaşma verilerini verdiğinde önerilerini şu 3 açıyı düşünerek yap:
 - Kafe Dinamiği: Gündüz trafiği, sadık müşteri elde tutma, hızlı servis.
