@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect, useCallback } from 'react'
 import { useBusiness } from '@/lib/business-context'
@@ -43,18 +43,14 @@ interface Snapshot {
 }
 
 const BUSINESS_TYPES = [
-  { value: 'berber', label: 'Berber', icon: '💈' },
-  { value: 'dis_hekimi', label: 'Diş Hekimi', icon: '🦷' },
-  { value: 'kafe', label: 'Kafe', icon: '☕' },
-  { value: 'restoran', label: 'Restoran', icon: '🍽️' },
-  { value: 'guzellik', label: 'Güzellik Salonu', icon: '💅' },
-  { value: 'bar', label: 'Bar / Lounge', icon: '🍸' },
-  { value: 'firin', label: 'Fırın / Pastane', icon: '🍞' },
-  { value: 'spor', label: 'Spor Salonu', icon: '🏋️' },
-  { value: 'otel', label: 'Otel / Pansiyon', icon: '🏨' },
-  { value: 'eczane', label: 'Eczane', icon: '💊' },
-  { value: 'market', label: 'Market', icon: '🏪' },
-  { value: 'diger', label: 'Diğer', icon: '🎯' },
+  { value: 'berber', label: 'Berber' },
+  { value: 'dis_hekimi', label: 'Diş Hekimi' },
+  { value: 'kafe', label: 'Kafe' },
+  { value: 'restoran', label: 'Restoran' },
+  { value: 'guzellik', label: 'Güzellik Salonu' },
+  { value: 'bar', label: 'Bar / Lounge' },
+  { value: 'firin', label: 'Fırın / Pastane' },
+  { value: 'diger', label: 'Diğer' },
 ]
 
 export default function ReviewAnalyzerPage() {
@@ -63,7 +59,7 @@ export default function ReviewAnalyzerPage() {
   // ── Form State ──
   const [businessName, setBusinessName] = useState('')
   const [city, setCity] = useState('')
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([])
+  const [businessType, setBusinessType] = useState('')
 
   // ── Result State ──
   const [result, setResult] = useState<AnalysisResult | null>(null)
@@ -127,16 +123,14 @@ export default function ReviewAnalyzerPage() {
       setBusinessName(activeBusiness.name || '')
       const parts = (activeBusiness.location || '').split(',')
       setCity(parts[0]?.trim() || '')
-      if (activeBusiness.business_type) {
-        setSelectedTypes(activeBusiness.business_type.split(',').map((s: string) => s.trim()).filter(Boolean))
-      }
+      setBusinessType(activeBusiness.business_type || '')
     }
   }, [activeBusiness])
 
   // ── Analysis ──
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!businessName.trim() || !city.trim() || selectedTypes.length === 0) return
+    if (!businessName.trim() || !city.trim() || !businessType) return
 
     setLoading(true)
     setError('')
@@ -149,7 +143,7 @@ export default function ReviewAnalyzerPage() {
         body: JSON.stringify({
           business_name: businessName.trim(),
           city: city.trim(),
-          business_type: selectedTypes.join(', '),
+          business_type: businessType,
         }),
       })
 
@@ -310,46 +304,27 @@ export default function ReviewAnalyzerPage() {
                 required
               />
             </div>
-          </div>
-          <div style={{ marginBottom: '16px' }}>
-            <label style={labelStyle}>İşletme Türü {selectedTypes.length > 0 && <span style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>({selectedTypes.length} seçili)</span>}</label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '8px' }}>
-              {BUSINESS_TYPES.map(t => {
-                const isSelected = selectedTypes.includes(t.value)
-                return (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => setSelectedTypes(prev =>
-                      prev.includes(t.value)
-                        ? prev.filter(v => v !== t.value)
-                        : [...prev, t.value]
-                    )}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '8px',
-                      padding: '10px 12px', borderRadius: 'var(--radius-md)',
-                      border: `1px solid ${isSelected ? 'rgba(99,102,241,0.5)' : 'var(--border-color)'}`,
-                      background: isSelected
-                        ? 'rgba(99,102,241,0.12)'
-                        : 'rgba(255,255,255,0.02)',
-                      color: isSelected ? '#a5b4fc' : 'var(--text-secondary)',
-                      cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500,
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    <span style={{ fontSize: '1rem' }}>{t.icon}</span>
-                    <span style={{ flex: 1, textAlign: 'left' }}>{t.label}</span>
-                    {isSelected && <span style={{ color: 'var(--accent-primary)', fontSize: '0.9rem' }}>✓</span>}
-                  </button>
-                )
-              })}
+            <div>
+              <label style={labelStyle}>İşletme Türü</label>
+              <select
+                id="business-type-select"
+                className="input-field"
+                value={businessType}
+                onChange={e => setBusinessType(e.target.value)}
+                required
+              >
+                <option value="" disabled>Seçiniz...</option>
+                {BUSINESS_TYPES.map(t => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
             </div>
           </div>
           <button
             id="analyze-btn"
             className="btn-primary"
             type="submit"
-            disabled={loading || !businessName.trim() || !city.trim() || selectedTypes.length === 0}
+            disabled={loading || !businessName.trim() || !city.trim() || !businessType}
           >
             {loading ? (
               <><span className="spinner" /> Analiz Ediliyor...</>
@@ -836,3 +811,4 @@ function toStringArray(val: any): string[] {
   }
   return []
 }
+
