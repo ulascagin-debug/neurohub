@@ -41,7 +41,7 @@ model User {
   image                String?
   password             String?
   plan                 String         @default("free")
-  onboarding_completed Boolean        @default(true)
+  onboarding_completed Boolean        @default(false)
   accounts             Account[]
   owned                Business[]     @relation("BusinessOwner")
   sessions             Session[]
@@ -57,18 +57,25 @@ model VerificationToken {
 }
 
 model Business {
-  id             String              @id @default(cuid())
-  name           String
-  location       String?
-  owner_id       String?
-  is_verified    Boolean             @default(false)
-  owner          User?               @relation("BusinessOwner", fields: [owner_id], references: [id])
-  chatbotConfig  ChatbotConfig?
-  integrations   IntegrationConfig[]
-  messages       Message[]
-  reservations   Reservation[]
-  reviewAnalysis ReviewAnalysis?
-  users          UserBusiness[]
+  id                String              @id @default(cuid())
+  name              String
+  location          String?
+  business_type     String?
+  place_id          String?
+  maps_url          String?
+  maps_rating       Float?
+  maps_review_count Int?
+  owner_id          String?
+  is_verified       Boolean             @default(false)
+  owner             User?               @relation("BusinessOwner", fields: [owner_id], references: [id])
+  chatbotConfig     ChatbotConfig?
+  competitors       CompetitorBusiness[]
+  integrations      IntegrationConfig[]
+  messages          Message[]
+  reservations      Reservation[]
+  reviewAnalysis    ReviewAnalysis?
+  reviewSnapshots   ReviewSnapshot[]
+  users             UserBusiness[]
 }
 
 model UserBusiness {
@@ -151,4 +158,34 @@ model ReviewAnalysis {
   competitor_weakness_count Int      @default(0)
   updated_at               DateTime @default(now())
   business                 Business @relation(fields: [business_id], references: [id], onDelete: Cascade)
+}
+
+model ReviewSnapshot {
+  id            String   @id @default(cuid())
+  business_id   String
+  source        String   @default("own")
+  place_id      String?
+  business_name String?
+  rating        Float?
+  review_count  Int?
+  reviews_json  String?
+  snapshot_date DateTime @default(now())
+  business      Business @relation(fields: [business_id], references: [id], onDelete: Cascade)
+
+  @@index([business_id, snapshot_date])
+  @@index([business_id, source])
+}
+
+model CompetitorBusiness {
+  id           String   @id @default(cuid())
+  business_id  String
+  place_id     String
+  name         String
+  address      String?
+  rating       Float?
+  review_count Int?
+  created_at   DateTime @default(now())
+  business     Business @relation(fields: [business_id], references: [id], onDelete: Cascade)
+
+  @@unique([business_id, place_id])
 }

@@ -32,12 +32,17 @@ export async function POST(req: Request) {
     const validation = validateBody(businessCreateSchema, body)
     if (!validation.success) return validation.response
 
-    const { name, location } = validation.data
+    const { name, location, business_type, place_id, maps_url, maps_rating, maps_review_count } = validation.data
 
     const business = await prisma.business.create({
       data: {
         name,
         location,
+        business_type: business_type || null,
+        place_id: place_id || null,
+        maps_url: maps_url || null,
+        maps_rating: maps_rating ?? null,
+        maps_review_count: maps_review_count ?? null,
         owner_id: session.user.id,
         is_verified: true,
       }

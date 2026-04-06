@@ -2,6 +2,24 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { validateBody, analysisSchema } from '@/lib/validators'
 
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url)
+  const businessId = searchParams.get('business_id')
+
+  if (!businessId) {
+    return NextResponse.json({ error: 'business_id gerekli' }, { status: 400 })
+  }
+
+  try {
+    const analysis = await prisma.reviewAnalysis.findUnique({
+      where: { business_id: businessId },
+    })
+    return NextResponse.json({ analysis })
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to fetch analysis' }, { status: 500 })
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json()

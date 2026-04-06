@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server'
 
-const REVIEW_ANALYZER_URL = process.env.REVIEW_ANALYZER_URL || 'http://localhost:8001'
+const ANALYZER_URL = process.env.ANALYZER_URL || 'http://localhost:3001'
 
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const { business_name, city, business_type } = body
+    const {
+      business_name, city, business_type,
+      competitor_urls, target_business_url,
+      country, district,
+    } = body
 
     if (!business_name || !city || !business_type) {
       return NextResponse.json(
@@ -14,15 +18,22 @@ export async function POST(req: Request) {
       )
     }
 
-    const analyzerResp = await fetch(`${REVIEW_ANALYZER_URL}/api/analyze`, {
+    const analyzerResp = await fetch(`${ANALYZER_URL}/api/analyze`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.ANALYZER_SECRET_KEY}`,
+      },
       body: JSON.stringify({
         business_name,
         city,
         business_type,
+        competitor_urls: competitor_urls || [],
+        target_business_url: target_business_url || null,
+        country: country || 'Turkey',
+        district: district || '',
       }),
-      signal: AbortSignal.timeout(300000), // 5 min timeout for long analyses
+      signal: AbortSignal.timeout(300000), // 5 min timeout
     })
 
     if (!analyzerResp.ok) {
@@ -46,7 +57,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json(
-      { error: 'Analiz servisi şu an kullanılamıyor. Lütfen servisin çalıştığından emin olun.' },
+      { error: 'Analiz servisi şu an kullanılamıyor.' },
       { status: 503 }
     )
   }

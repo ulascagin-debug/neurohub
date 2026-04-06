@@ -3,19 +3,14 @@ import { NextResponse } from 'next/server'
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const { category, city, district, country } = body
+    const { query, location } = body
 
-    if (!category || !city) {
-      return NextResponse.json({ error: 'Category and city are required' }, { status: 400 })
+    if (!query || !location) {
+      return NextResponse.json({ error: 'query and location are required' }, { status: 400 })
     }
 
     const ANALYZER_URL = process.env.ANALYZER_URL || 'http://localhost:3001'
-    const location = district ? `${city}, ${district}` : city
-    const params = new URLSearchParams({
-      query: category,
-      location,
-      country: country || 'Turkey',
-    })
+    const params = new URLSearchParams({ query, location })
 
     const searchResp = await fetch(`${ANALYZER_URL}/api/search-place?${params.toString()}`, {
       method: 'GET',
@@ -30,9 +25,9 @@ export async function POST(req: Request) {
     }
 
     const data = await searchResp.json()
-    return NextResponse.json({ businesses: data })
+    return NextResponse.json(data)
   } catch (error) {
-    console.error('[analyzer/search] Error:', error)
+    console.error('[competitors/search] Error:', error)
     return NextResponse.json({ error: 'Search failed' }, { status: 500 })
   }
 }

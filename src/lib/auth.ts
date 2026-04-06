@@ -37,11 +37,29 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   callbacks: {
     async session({ session, token }) {
-      if (token && session.user) session.user.id = token.sub!
+      if (token && session.user) {
+        session.user.id = token.sub!
+        session.user.onboarding_completed = token.onboarding_completed ?? false
+      }
       return session
     },
-    async jwt({ token, user }) {
-      if (user) token.sub = user.id
+    async jwt({ token, user, trigger }) {
+      if (user) {
+        token.sub = user.id
+        const dbUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { onboarding_completed: true }
+        })
+        token.onboarding_completed = dbUser?.onboarding_completed ?? false
+      }
+      // Refresh onboarding status on every session update
+      if (trigger === "update" && token.sub) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.sub },
+          select: { onboarding_completed: true }
+        })
+        token.onboarding_completed = dbUser?.onboarding_completed ?? false
+      }
       return token
     }
   },

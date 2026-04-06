@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { getToken } from 'next-auth/jwt'
 
 // ── In-Memory Rate Limiter ──
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
@@ -50,40 +51,69 @@ const securityHeaders: [string, string][] = [
   ['X-Permitted-Cross-Domain-Policies', 'none'],
 ]
 
-export function middleware(request: NextRequest) {
+// ── Paths excluded from onboarding redirect ──
+const ONBOARDING_BYPASS = ['/setup', '/login', '/register', '/api/', '/_next/', '/favicon.ico']
+
+function shouldBypassOnboarding(pathname: string): boolean {
+  return ONBOARDING_BYPASS.some(p => pathname.startsWith(p))
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Only apply to API routes
-  if (!pathname.startsWith('/api/')) {
-    return NextResponse.next()
+  // ── Onboarding redirect (all routes except bypass list) ──
+  if (!shouldBypassOnboarding(pathname)) {
+    const token = await getToken({ req: request })
+    if (token && token.onboarding_completed === false) {
+      const setupUrl = new URL('/setup', request.url)
+      return NextResponse.redirect(setupUrl)
+    }
   }
 
-  // Periodic cleanup (every ~100 requests)
-  if (rateLimitMap.size > 100) {
-    cleanupStaleEntries()
-  }
+  // ── API-specific: Rate limiting & security headers ──
+  if (pathname.startsWith('/api/')) {
+    // Periodic cleanup (every ~100 requests)
+    if (rateLimitMap.size > 100) {
+      cleanupStaleEntries()
+    }
 
-  // Get client IP
-  const forwarded = request.headers.get('x-forwarded-for')
-  const realIp = request.headers.get('x-real-ip')
-  const ip = (forwarded ? forwarded.split(',')[0].trim() : null)
-    || realIp
-    || '127.0.0.1'
+    // Get client IP
+    const forwarded = request.headers.get('x-forwarded-for')
+    const realIp = request.headers.get('x-real-ip')
+    const ip = (forwarded ? forwarded.split(',')[0].trim() : null)
+      || realIp
+      || '127.0.0.1'
 
-  // ── Rate Limiting ──
-  const { allowed, remaining, resetIn } = checkRateLimit(ip)
+    // ── Rate Limiting ──
+    const { allowed, remaining, resetIn } = checkRateLimit(ip)
 
-  if (!allowed) {
-    const response = NextResponse.json(
-      { error: 'Çok fazla istek. Lütfen bir dakika bekleyin.' },
-      { status: 429 }
-    )
-    response.headers.set('Retry-After', String(Math.ceil(resetIn / 1000)))
+    if (!allowed) {
+      const response = NextResponse.json(
+        { error: 'Çok fazla istek. Lütfen bir dakika bekleyin.' },
+        { status: 429 }
+      )
+      response.headers.set('Retry-After', String(Math.ceil(resetIn / 1000)))
+      response.headers.set('X-RateLimit-Limit', String(RATE_LIMIT_MAX))
+      response.headers.set('X-RateLimit-Remaining', '0')
+      response.headers.set('X-RateLimit-Reset', String(Math.ceil(resetIn / 1000)))
+
+      // Add security headers to 429 response too
+      for (let i = 0; i < securityHeaders.length; i++) {
+        response.headers.set(securityHeaders[i][0], securityHeaders[i][1])
+      }
+
+      return response
+    }
+
+    // ── Continue with security headers ──
+    const response = NextResponse.next()
+
+    // Rate limit headers
     response.headers.set('X-RateLimit-Limit', String(RATE_LIMIT_MAX))
-    response.headers.set('X-RateLimit-Remaining', '0')
+    response.headers.set('X-RateLimit-Remaining', String(remaining))
     response.headers.set('X-RateLimit-Reset', String(Math.ceil(resetIn / 1000)))
 
-    // Add security headers to 429 response too
+    // Security headers
     for (let i = 0; i < securityHeaders.length; i++) {
       response.headers.set(securityHeaders[i][0], securityHeaders[i][1])
     }
@@ -91,22 +121,9 @@ export function middleware(request: NextRequest) {
     return response
   }
 
-  // ── Continue with security headers ──
-  const response = NextResponse.next()
-
-  // Rate limit headers
-  response.headers.set('X-RateLimit-Limit', String(RATE_LIMIT_MAX))
-  response.headers.set('X-RateLimit-Remaining', String(remaining))
-  response.headers.set('X-RateLimit-Reset', String(Math.ceil(resetIn / 1000)))
-
-  // Security headers
-  for (let i = 0; i < securityHeaders.length; i++) {
-    response.headers.set(securityHeaders[i][0], securityHeaders[i][1])
-  }
-
-  return response
+  return NextResponse.next()
 }
 
 export const config = {
-  matcher: '/api/:path*',
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }

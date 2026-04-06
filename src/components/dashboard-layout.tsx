@@ -1,7 +1,7 @@
 "use client"
 
 import { Sidebar } from './sidebar'
-import { useSession } from 'next-auth/react'
+import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
@@ -65,6 +65,33 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
               {session.user?.name || session.user?.email}
             </span>
+            <button
+              onClick={() => signOut({ callbackUrl: '/login' })}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 16px',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid rgba(239,68,68,0.25)',
+                background: 'rgba(239,68,68,0.08)',
+                color: '#f87171',
+                cursor: 'pointer',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                transition: 'var(--transition-smooth)',
+              }}
+              onMouseOver={e => {
+                e.currentTarget.style.background = 'rgba(239,68,68,0.18)'
+                e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)'
+              }}
+              onMouseOut={e => {
+                e.currentTarget.style.background = 'rgba(239,68,68,0.08)'
+                e.currentTarget.style.borderColor = 'rgba(239,68,68,0.25)'
+              }}
+            >
+              🚪 Çıkış Yap
+            </button>
           </div>
         </div>
         {children}

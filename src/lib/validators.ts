@@ -21,6 +21,11 @@ export const refreshTokenSchema = z.object({
 export const businessCreateSchema = z.object({
   name: z.string().min(1, 'İşletme adı gerekli').max(200),
   location: z.string().max(500).optional().nullable(),
+  business_type: z.string().max(100).optional().nullable(),
+  place_id: z.string().max(500).optional().nullable(),
+  maps_url: z.string().max(1000).optional().nullable(),
+  maps_rating: z.preprocess((v) => v != null ? Number(v) : null, z.number().nullable().optional()),
+  maps_review_count: z.preprocess((v) => v != null ? Number(v) : null, z.number().nullable().optional()),
 })
 
 export const businessUpdateSchema = z.object({
