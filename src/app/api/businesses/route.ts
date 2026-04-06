@@ -71,16 +71,26 @@ export async function PUT(req: Request) {
 
   try {
     const body = await req.json()
+    const { id, name, location, business_type, place_id, maps_url, maps_rating, maps_review_count, estimated_monthly_revenue, employee_count } = body
 
-    // Validate input
-    const validation = validateBody(businessUpdateSchema, body)
-    if (!validation.success) return validation.response
+    if (!id) {
+      return NextResponse.json({ error: "id gerekli" }, { status: 400 })
+    }
 
-    const { id, name, location } = validation.data
+    const updateData: any = {}
+    if (name !== undefined) updateData.name = name
+    if (location !== undefined) updateData.location = location || null
+    if (business_type !== undefined) updateData.business_type = business_type || null
+    if (place_id !== undefined) updateData.place_id = place_id || null
+    if (maps_url !== undefined) updateData.maps_url = maps_url || null
+    if (maps_rating !== undefined) updateData.maps_rating = maps_rating ?? null
+    if (maps_review_count !== undefined) updateData.maps_review_count = maps_review_count ?? null
+    if (estimated_monthly_revenue !== undefined) updateData.estimated_monthly_revenue = estimated_monthly_revenue ?? null
+    if (employee_count !== undefined) updateData.employee_count = employee_count ?? null
 
     const business = await prisma.business.update({
       where: { id },
-      data: { name, location: location || null },
+      data: updateData,
     })
 
     return NextResponse.json({ business })

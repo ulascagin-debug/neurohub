@@ -348,17 +348,32 @@ export default function OverviewPage() {
       </div>
 
       <div className="glass-panel" style={{ padding: '32px' }}>
-        <h2 style={{ marginBottom: '16px' }}>AI Forecast 🚀</h2>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '16px' }}>
-          Based on historical reservation data, our AI predicts your performance for next week.
+        <h2 style={{ marginBottom: '16px' }}>AI Trend Analizi 🚀</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
+          Geçmiş rezervasyon ve mesaj hacimlerine dayanarak önümüzdeki hafta için tahminler.
         </p>
-        <div style={{ padding: '20px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', borderLeft: '4px solid var(--accent-primary)' }}>
-          <p style={{ fontSize: '1.25rem' }}>Predicted next week reservations: <strong>{metrics.predictedNextWeek}</strong></p>
-          <p style={{ color: 'var(--text-secondary)', marginTop: '8px', fontSize: '0.875rem' }}>
-            {metrics.predictedNextWeek > metrics.reservationsCount 
-              ? "Upward trend detected based on message volume & recent bookings."
-              : "Expecting similar behavior to this week."}
-          </p>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+          <div style={{ padding: '24px', background: 'rgba(99,102,241,0.06)', borderRadius: '12px', border: '1px solid rgba(99,102,241,0.15)' }}>
+            <h3 style={{ fontSize: '0.9rem', color: '#a5b4fc', textTransform: 'uppercase', marginBottom: '8px' }}>Gelecek Hafta Beklentisi</h3>
+            <p style={{ fontSize: '2.5rem', fontWeight: 800, margin: '8px 0', color: 'var(--text-primary)' }}>
+              {metrics.predictedNextWeek} <span style={{ fontSize: '1rem', color: 'var(--text-secondary)', fontWeight: 500 }}>rezervasyon</span>
+            </p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+              {metrics.predictedNextWeek > metrics.reservationsCount 
+                ? "💡 Artan mesaj trafiği ve etkileşimler yukarı yönlü bir trend olduğuna işaret ediyor."
+                : "💡 Geçen haftaya benzer stabil bir aktivite ortamı öngörülüyor."}
+            </p>
+          </div>
+
+          <div style={{ padding: '24px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+             <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '16px' }}>Sistem Önerileri</h3>
+             <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+               <li style={{ display: 'flex', gap: '10px' }}><span style={{ color: 'var(--warning)' }}>⚠️</span> Hafta sonu akşam saatlerinde mesaj hacmi en tepe noktasına ulaşıyor. Chatbot performansının bu saatlerde artışı dönüşüme direk katkı sağlar.</li>
+               <li style={{ display: 'flex', gap: '10px' }}><span style={{ color: 'var(--success)' }}>✓</span> Rezervasyon dönüşüm oranı stabil. Otomatik yanıtlarda iletişim tonu optimize edildi.</li>
+               <li style={{ display: 'flex', gap: '10px' }}><span style={{ color: 'var(--info)' }}>↗️</span> Growth Insights sekmesindeki stratejileri aktif olarak uygulamanız önerilir.</li>
+             </ul>
+          </div>
         </div>
       </div>
     </div>

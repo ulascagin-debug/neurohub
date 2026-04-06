@@ -22,11 +22,11 @@ export function Sidebar() {
     <aside className="sidebar">
       {/* Brand */}
       <div className="sidebar-brand">
-        <h2 className="text-gradient" style={{ fontSize: '1.35rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
-          NeuroHub
+        <h2 className="text-gradient" style={{ fontSize: '1.2rem', fontWeight: 800, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {activeBusiness?.name || 'NeuroHub'}
         </h2>
         <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-          Dashboard Center
+          {activeBusiness?.business_type || 'Dashboard Center'}
         </p>
       </div>
 

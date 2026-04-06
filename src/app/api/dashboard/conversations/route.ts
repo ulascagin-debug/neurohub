@@ -84,19 +84,19 @@ export async function GET(req: Request) {
       orderBy: { created_at: 'asc' }
     })
 
-    // Group by session_id
-    const sessionMap = new Map<string, typeof messages>()
+    // Group by user_id + platform
+    const userMap = new Map<string, typeof messages>()
     for (const msg of messages) {
-      const sid = msg.session_id || `legacy_${msg.platform}_${msg.user_id || 'anon'}`
-      if (!sessionMap.has(sid)) sessionMap.set(sid, [])
-      sessionMap.get(sid)!.push(msg)
+      const uid = `${msg.platform}_${msg.user_id || 'anon'}`
+      if (!userMap.has(uid)) userMap.set(uid, [])
+      userMap.get(uid)!.push(msg)
     }
 
     // Collect unique Instagram user IDs for batch resolution
     const igUserIds = new Set<string>()
-    for (const [, sessionMsgs] of Array.from(sessionMap)) {
-      const platform = sessionMsgs[0].platform
-      const userId = sessionMsgs[0].user_id
+    for (const [, userMsgs] of Array.from(userMap)) {
+      const platform = userMsgs[0].platform
+      const userId = userMsgs[0].user_id
       if (platform === 'instagram' && userId && userId !== 'anonymous') {
         igUserIds.add(userId)
       }
@@ -110,9 +110,12 @@ export async function GET(req: Request) {
 
     const conversations: SessionGroup[] = []
 
-    for (const [sessionId, sessionMsgs] of Array.from(sessionMap)) {
-      const firstMsg = sessionMsgs[0]
-      const lastMsg = sessionMsgs[sessionMsgs.length - 1]
+    for (const [uidKey, userMsgs] of Array.from(userMap)) {
+      // Sort messages ascending
+      userMsgs.sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+
+      const firstMsg = userMsgs[0]
+      const lastMsg = userMsgs[userMsgs.length - 1]
       const platform = firstMsg.platform
       const userId = firstMsg.user_id || 'anonymous'
 
@@ -125,24 +128,25 @@ export async function GET(req: Request) {
         displayName = `@${resolvedName.replace(/^@/, '')}`
       }
 
-      // Append session date
-      const sessionDate = new Date(firstMsg.created_at).toLocaleDateString('tr-TR', {
-        day: '2-digit', month: 'short', year: 'numeric'
-      })
+      // We determine status and has_reservation based on the latest session
+      // OR by accumulating them
+      const latestSessionId = lastMsg.session_id || `legacy_${uidKey}`
+      const isActive = userMsgs.some(m => m.session_status === 'active')
+      const hasRes = userMsgs.some(m => m.has_reservation)
 
       conversations.push({
-        id: sessionId,
-        session_id: sessionId,
+        id: uidKey, // Use user unique key as folder ID
+        session_id: latestSessionId, // Close/open acts on the latest session
         user_id: userId,
         platform,
-        display_name: `${displayName} — ${sessionDate}`,
+        display_name: displayName, // Removed session date from name, it's a person folder now
         last_message: lastMsg.content || lastMsg.response || '',
         last_time: lastMsg.created_at.toISOString(),
         first_time: firstMsg.created_at.toISOString(),
-        message_count: sessionMsgs.length,
-        status: firstMsg.session_status || 'active',
-        has_reservation: firstMsg.has_reservation || false,
-        messages: sessionMsgs.map(m => ({
+        message_count: userMsgs.length,
+        status: isActive ? 'active' : 'completed',
+        has_reservation: hasRes,
+        messages: userMsgs.map(m => ({
           id: m.id,
           content: m.content,
           response: m.response,

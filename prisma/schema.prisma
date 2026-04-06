@@ -67,6 +67,8 @@ model Business {
   maps_review_count Int?
   owner_id          String?
   is_verified       Boolean             @default(false)
+  estimated_monthly_revenue Int?
+  employee_count    Int?
   owner             User?               @relation("BusinessOwner", fields: [owner_id], references: [id])
   chatbotConfig     ChatbotConfig?
   competitors       CompetitorBusiness[]
@@ -184,6 +186,7 @@ model CompetitorBusiness {
   address      String?
   rating       Float?
   review_count Int?
+  is_top3      Boolean  @default(false)
   created_at   DateTime @default(now())
   business     Business @relation(fields: [business_id], references: [id], onDelete: Cascade)
 
