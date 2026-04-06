@@ -429,17 +429,26 @@ export default function SetupPage() {
                           </div>
                         )}
                       </div>
-                      <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '12px' }}>
-                        {biz.rating != null && (
-                          <div style={{ fontSize: '0.8rem', color: '#f59e0b', fontWeight: 700 }}>
-                            ⭐ {biz.rating}
-                          </div>
-                        )}
-                        {biz.reviews_count != null && (
-                          <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.35)' }}>
-                            {biz.reviews_count} yorum
-                          </div>
-                        )}
+                      <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          {biz.rating != null && (
+                            <div style={{ fontSize: '0.8rem', color: '#f59e0b', fontWeight: 700 }}>
+                              ⭐ {biz.rating}
+                            </div>
+                          )}
+                          {biz.reviews_count != null && (
+                            <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.35)' }}>
+                              ({biz.reviews_count})
+                            </div>
+                          )}
+                        </div>
+                        <div style={{
+                          fontSize: '0.75rem', fontWeight: 600, color: '#fff', 
+                          background: '#6366f1', padding: '4px 12px', borderRadius: '6px',
+                          display: 'inline-block', marginTop: '2px'
+                        }}>
+                          Seç
+                        </div>
                       </div>
                     </button>
                   ))}
