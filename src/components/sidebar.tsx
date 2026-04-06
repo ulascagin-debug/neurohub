@@ -7,9 +7,9 @@ import { signOut } from 'next-auth/react'
 
 const navLinks = [
   { name: 'Overview', href: '/', icon: '📊' },
+  { name: 'Review Analyzer', href: '/review-analyzer', icon: '🔍' },
   { name: 'Messages', href: '/messages', icon: '💬' },
   { name: 'Reservations', href: '/reservations', icon: '📋' },
-  { name: 'Review Analyzer', href: '/review-analyzer', icon: '🔍' },
   { name: 'Integrations', href: '/integrations', icon: '🔗' },
   { name: 'Settings', href: '/settings', icon: '⚙️' },
 ]
