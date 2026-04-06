@@ -11,17 +11,18 @@ export async function POST(req: Request) {
 
     const ANALYZER_URL = process.env.ANALYZER_URL || 'http://localhost:3001'
     const location = district ? `${city}, ${district}` : city
-    const params = new URLSearchParams({
-      query: category,
-      location,
-      country: country || 'Turkey',
-    })
-
-    const searchResp = await fetch(`${ANALYZER_URL}/api/search-place?${params.toString()}`, {
-      method: 'GET',
+    const searchResp = await fetch(`${ANALYZER_URL}/search`, {
+      method: 'POST',
       headers: {
+        'Content-Type': 'application/json',
         'Authorization': `Bearer ${process.env.ANALYZER_SECRET_KEY}`,
       },
+      body: JSON.stringify({
+        category: category,
+        city: city,
+        district: district || '',
+        country: country || 'Turkey'
+      })
     })
 
     if (!searchResp.ok) {
