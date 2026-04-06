@@ -40,7 +40,7 @@ interface MapsBusiness {
 }
 
 export default function SetupPage() {
-  const { data: session, status } = useSession()
+  const { data: session, status, update } = useSession()
   const router = useRouter()
 
   const [step, setStep] = useState(1)
@@ -167,8 +167,11 @@ export default function SetupPage() {
       // Mark onboarding complete
       await fetch('/api/auth/onboarding-status', { method: 'POST' })
 
-      // Redirect to dashboard
-      router.push('/')
+      // Force NextAuth to pull the updated db user data into its JWT session cookie
+      await update()
+
+      // Redirect to dashboard (hard refresh to guarantee fresh state)
+      window.location.href = '/'
     } catch {
       setError('Bağlantı hatası')
     }
