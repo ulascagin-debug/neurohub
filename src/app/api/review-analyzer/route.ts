@@ -174,10 +174,10 @@ export async function POST(req: Request) {
 
     // Include the original flat "tam eşleşme" or first available result at the root just in case legacy UI components expect it temporarily
     // But mainly return layeredResults as `layered_analysis`
-    const legacyFallback = finalResponse["Tam Eşleşme"] ? Object.values(finalResponse["Tam Eşleşme"])[0] : Object.values(Object.values(finalResponse)[0] as any)[0];
+    const legacyFallback: any = finalResponse["Tam Eşleşme"] ? Object.values(finalResponse["Tam Eşleşme"])[0] : Object.values(Object.values(finalResponse)[0] as any)[0];
     
     return NextResponse.json({
-      ...legacyFallback,
+      ...(legacyFallback || {}),
       layered_analysis: finalResponse
     })
 
