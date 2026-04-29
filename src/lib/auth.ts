@@ -1,5 +1,6 @@
 import { NextAuthOptions } from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
+import AppleProvider from "next-auth/providers/apple"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import prisma from "./prisma"
@@ -11,6 +12,10 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || "mock-client-id",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "mock-client-secret",
+    }),
+    AppleProvider({
+      clientId: process.env.APPLE_ID || "mock-apple-id",
+      clientSecret: process.env.APPLE_SECRET || "mock-apple-secret",
     }),
     CredentialsProvider({
       name: "Credentials",
