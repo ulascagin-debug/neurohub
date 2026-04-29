@@ -51,24 +51,9 @@ const securityHeaders: [string, string][] = [
   ['X-Permitted-Cross-Domain-Policies', 'none'],
 ]
 
-// ── Paths excluded from onboarding redirect ──
-const ONBOARDING_BYPASS = ['/setup', '/login', '/register', '/api/', '/_next/', '/favicon.ico']
-
-function shouldBypassOnboarding(pathname: string): boolean {
-  return ONBOARDING_BYPASS.some(p => pathname.startsWith(p))
-}
-
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // ── Onboarding redirect (all routes except bypass list) ──
-  if (!shouldBypassOnboarding(pathname)) {
-    const token = await getToken({ req: request })
-    if (token && token.onboarding_completed === false) {
-      const setupUrl = new URL('/setup', request.url)
-      return NextResponse.redirect(setupUrl)
-    }
-  }
 
   // ── API-specific: Rate limiting & security headers ──
   if (pathname.startsWith('/api/')) {

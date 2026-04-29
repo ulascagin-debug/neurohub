@@ -2,6 +2,7 @@
 
 import { useBusiness } from '@/lib/business-context'
 import { useEffect, useState, useCallback } from 'react'
+import ReviewAnalyzerPage from '../review-analyzer/page'
 
 const POLL_INTERVAL = 15000 // 15 seconds
 
@@ -385,6 +386,12 @@ export default function OverviewPage() {
           </div>
         </div>
       </div>
+
+      {/* ─── Unified Review Analyzer Section ─── */}
+      <div style={{ marginTop: '64px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '40px' }}>
+        <ReviewAnalyzerPage />
+      </div>
+
     </div>
   )
 }

@@ -1,22 +1,26 @@
 "use client"
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useBusiness } from '@/lib/business-context'
 import { signOut } from 'next-auth/react'
+import { BusinessSelectorModal } from './business-selector-modal'
 
 const navLinks = [
-  { name: 'Overview', href: '/', icon: '📊' },
+  { name: 'Overview', href: '/dashboard', icon: '📊' },
   { name: 'Review Analyzer', href: '/review-analyzer', icon: '🔍' },
   { name: 'Messages', href: '/messages', icon: '💬' },
   { name: 'Reservations', href: '/reservations', icon: '📋' },
   { name: 'Integrations', href: '/integrations', icon: '🔗' },
   { name: 'Settings', href: '/settings', icon: '⚙️' },
+  { name: 'Abonelik', href: '/subscription', icon: '💎' },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
   const { businesses, activeBusinessId, setActiveBusinessId, activeBusiness } = useBusiness()
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   return (
     <aside className="sidebar">
@@ -32,51 +36,57 @@ export function Sidebar() {
 
       {/* Business Selector */}
       <div style={{ padding: '0 20px', marginBottom: '8px' }}>
-        <div style={{
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid var(--border-color)',
-          borderRadius: 'var(--radius-md)',
-          padding: '12px 14px',
-        }}>
-          <p style={{
-            fontSize: '0.65rem', color: 'var(--text-muted)',
-            textTransform: 'uppercase', letterSpacing: '0.06em',
-            marginBottom: '6px', fontWeight: 600,
-          }}>
-            Aktif İşletme
-          </p>
-          {businesses.length > 0 ? (
-            <select
-              className="input-field"
-              value={activeBusinessId || ''}
-              onChange={(e) => setActiveBusinessId(e.target.value)}
-              title="Select Business"
-              style={{
-                padding: '8px 10px',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                background: 'rgba(255,255,255,0.05)',
-              }}
-            >
-              {businesses.map(b => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
-          ) : (
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-              İşletme yok
-            </p>
-          )}
-          {activeBusiness?.business_type && (
+        <div 
+          onClick={() => setIsModalOpen(true)}
+          style={{
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 'var(--radius-md)',
+            padding: '12px 14px',
+            cursor: 'pointer',
+            transition: 'var(--transition-smooth)'
+          }}
+          onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+          onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+          title="İşletme Seç / Değiştir"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
             <p style={{
-              fontSize: '0.7rem', color: 'var(--accent-primary)',
-              marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px',
+              fontSize: '0.65rem', color: 'var(--text-muted)',
+              textTransform: 'uppercase', letterSpacing: '0.06em',
+              fontWeight: 600, margin: 0
             }}>
-              <span>🏷</span> {activeBusiness.business_type}
+              Aktif İşletme
+            </p>
+            <span style={{ fontSize: '0.8rem', color: 'var(--accent-primary)' }}>&#9020;</span> 
+          </div>
+          
+          {activeBusiness ? (
+            <div>
+              <p style={{ fontSize: '0.85rem', fontWeight: 600, margin: '4px 0', color: 'var(--text-primary)' }}>
+                {activeBusiness.name}
+              </p>
+              {activeBusiness.business_type && (
+                <p style={{
+                  fontSize: '0.7rem', color: 'var(--accent-primary)',
+                  display: 'flex', alignItems: 'center', gap: '4px', margin: 0
+                }}>
+                  <span>🏷</span> {activeBusiness.business_type.split(',')[0]}
+                </p>
+              )}
+            </div>
+          ) : (
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', margin: '4px 0' }}>
+              İşletme yok. Değiştir
             </p>
           )}
         </div>
       </div>
+      
+      <BusinessSelectorModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+      />
 
       <div className="sidebar-divider" />
 
@@ -102,7 +112,7 @@ export function Sidebar() {
       <div style={{ padding: '0 20px' }}>
         <div className="sidebar-divider" style={{ margin: '8px 0 12px' }} />
         <button
-          onClick={() => signOut({ callbackUrl: '/login' })}
+          onClick={() => signOut({ callbackUrl: '/' })}
           style={{
             width: '100%',
             display: 'flex',

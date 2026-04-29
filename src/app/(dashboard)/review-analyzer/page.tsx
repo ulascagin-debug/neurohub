@@ -229,70 +229,103 @@ export default function ReviewAnalyzerPage() {
       )}
 
       {results && !loading && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {/* Executive Summary Cards */}
-           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '24px' }}>
-             <div className="glass-panel stat-card area-card green">
-                <div className="stat-label">Sektördeki Fırsatlar</div>
-                <div className="stat-value">{Object.keys(results.competitor_strengths_categorized || {}).length || 0}</div>
-                <div className="stat-sub">Fark yaratan kategori</div>
-             </div>
-             <div className="glass-panel stat-card area-card amber">
-                <div className="stat-label">Rakip Sorunları</div>
-                <div className="stat-value">{Object.values(results.competitor_issues || {}).flat().length || 0}</div>
-                <div className="stat-sub">Tespit edilen şikayet</div>
-             </div>
-             <div className="glass-panel stat-card area-card red">
-                <div className="stat-label">Geliştirilmesi Gereken</div>
-                <div className="stat-value">{results.own_business_analysis?.weaknesses?.length || 0}</div>
-                <div className="stat-sub">Kendi yorumlarımızdan</div>
-             </div>
-           </div>
-
-           {/* AI CEO Plan */}
-           <div className="glass-panel" style={{ padding: '32px', background: 'linear-gradient(180deg, rgba(139,92,246,0.05) 0%, rgba(0,0,0,0) 100%)' }}>
-             <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#a78bfa', marginBottom: '20px' }}>
-               👑 CEO Eylem Planı
-             </h2>
-             {Object.entries(results.competitor_strengths_categorized || {}).map(([key, data]: [string, any], i) => (
-                <div key={i} style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--border-color)' }}>
-                   <h3 style={{ fontSize: '1.2rem', marginBottom: '12px' }}>{key.toUpperCase()}</h3>
-                   <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-                     {data.leaders?.map((l: string, j: number) => (
-                       <span key={j} style={{ background: 'rgba(255,255,255,0.1)', padding: '4px 12px', borderRadius: '20px', fontSize: '0.8rem' }}>🏅 {l}</span>
-                     ))}
-                   </div>
-                   <p style={{ color: 'var(--text-primary)', lineHeight: 1.8, fontSize: '0.95rem' }}>{data.how_to_beat}</p>
-                </div>
-             ))}
-           </div>
-           
-           {/* Top Competitors */}
-           <h2 style={{ marginTop: '16px', fontSize: '1.5rem' }}>Top 3 Rakip Analizi</h2>
-           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-             {results.top_3_competitors?.map((comp: any, i: number) => (
-               <div key={i} className="glass-panel" style={{ padding: '24px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                     <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{comp.name}</h3>
-                     <span style={{ color: '#f59e0b', fontWeight: 'bold' }}>⭐ {comp.rating} ({comp.review_count})</span>
-                  </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
+          {results.layered_analysis ? (
+             Object.entries(results.layered_analysis).map(([groupName, subsets]: [string, any], gIdx) => (
+               <div key={gIdx} className="analysis-grouping">
+                  <h2 style={{ 
+                    fontSize: '2rem', 
+                    color: 'white', 
+                    marginBottom: '24px', 
+                    borderBottom: '2px solid rgba(255,255,255,0.1)', 
+                    paddingBottom: '12px' 
+                  }} className="text-gradient">
+                     {groupName}
+                  </h2>
                   
-                  <div style={{ color: 'var(--success)', marginBottom: '12px' }}>
-                    <strong style={{ fontSize: '0.8rem', textTransform: 'uppercase' }}>Güçlü Yönleri</strong>
-                    <ul style={{ paddingLeft: '20px', fontSize: '0.9rem', marginTop: '4px' }}>
-                      {comp.key_strengths?.slice(0,3).map((s: string, j: number) => <li key={j}>{s}</li>)}
-                    </ul>
-                  </div>
+                  {Object.entries(subsets).map(([subsetName, analysisObj]: [string, any], sIdx) => (
+                    <div key={sIdx} className="subset-analysis" style={{
+                      background: 'rgba(255,255,255,0.02)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: 'var(--radius-lg)',
+                      padding: '32px',
+                      marginBottom: '32px'
+                    }}>
+                       <h3 style={{ fontSize: '1.4rem', marginBottom: '24px', color: 'var(--accent-primary)' }}>🏷️ {subsetName}</h3>
+                       
+                       {/* Executive Summary Cards */}
+                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px', marginBottom: '32px' }}>
+                         <div className="glass-panel stat-card area-card green">
+                            <div className="stat-label">Sektördeki Fırsatlar</div>
+                            <div className="stat-value">{Object.keys(analysisObj.competitor_strengths_categorized || {}).length || 0}</div>
+                            <div className="stat-sub">Fark yaratan kategori</div>
+                         </div>
+                         <div className="glass-panel stat-card area-card amber">
+                            <div className="stat-label">Rakip Sorunları</div>
+                            <div className="stat-value">{Object.values(analysisObj.competitor_issues || {}).flat().length || 0}</div>
+                            <div className="stat-sub">Tespit edilen şikayet</div>
+                         </div>
+                         <div className="glass-panel stat-card area-card red">
+                            <div className="stat-label">Geliştirilmesi Gereken</div>
+                            <div className="stat-value">{analysisObj.own_business_analysis?.weaknesses?.length || 0}</div>
+                            <div className="stat-sub">Kendi yorumlarımızdan</div>
+                         </div>
+                       </div>
 
-                  <div style={{ color: 'var(--danger)' }}>
-                    <strong style={{ fontSize: '0.8rem', textTransform: 'uppercase' }}>Zayıf Yönleri</strong>
-                    <ul style={{ paddingLeft: '20px', fontSize: '0.9rem', marginTop: '4px' }}>
-                      {comp.key_weaknesses?.slice(0,3).map((w: string, j: number) => <li key={j}>{w}</li>)}
-                    </ul>
-                  </div>
+                       {/* AI CEO Plan */}
+                       <div className="glass-panel" style={{ padding: '32px', background: 'linear-gradient(180deg, rgba(139,92,246,0.05) 0%, rgba(0,0,0,0) 100%)', marginBottom: '32px' }}>
+                         <h4 style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#a78bfa', marginBottom: '20px', fontSize: '1.2rem' }}>
+                           👑 CEO Eylem Planı
+                         </h4>
+                         {Object.entries(analysisObj.competitor_strengths_categorized || {}).map(([key, data]: [string, any], i) => (
+                            <div key={i} style={{ marginBottom: i < Object.keys(analysisObj.competitor_strengths_categorized || {}).length - 1 ? '24px' : '0', paddingBottom: i < Object.keys(analysisObj.competitor_strengths_categorized || {}).length - 1 ? '24px' : '0', borderBottom: i < Object.keys(analysisObj.competitor_strengths_categorized || {}).length - 1 ? '1px solid var(--border-color)' : 'none' }}>
+                               <h5 style={{ fontSize: '1.1rem', marginBottom: '12px' }}>{key}</h5>
+                               <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                                 {data.leaders?.map((l: string, j: number) => (
+                                   <span key={j} style={{ background: 'rgba(255,255,255,0.1)', padding: '4px 12px', borderRadius: '20px', fontSize: '0.8rem' }}>🏅 {l}</span>
+                                 ))}
+                               </div>
+                               <p style={{ color: 'var(--text-primary)', lineHeight: 1.8, fontSize: '0.95rem' }}>{data.how_to_beat}</p>
+                            </div>
+                         ))}
+                       </div>
+                       
+                       {/* Top Competitors */}
+                       <h4 style={{ fontSize: '1.3rem', marginBottom: '16px' }}>Top Rakip Analizi</h4>
+                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+                         {analysisObj.top_3_competitors?.map((comp: any, i: number) => (
+                           <div key={i} className="glass-panel" style={{ padding: '24px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                 <h5 style={{ margin: 0, fontSize: '1.1rem' }}>{comp.name}</h5>
+                                 <span style={{ color: '#f59e0b', fontWeight: 'bold', fontSize: '0.9rem' }}>⭐ {comp.rating} ({comp.review_count})</span>
+                              </div>
+                              
+                              <div style={{ color: 'var(--success)', marginBottom: '12px' }}>
+                                <strong style={{ fontSize: '0.8rem', textTransform: 'uppercase' }}>Güçlü Yönleri</strong>
+                                <ul style={{ paddingLeft: '20px', fontSize: '0.9rem', marginTop: '4px' }}>
+                                  {comp.key_strengths?.slice(0,3).map((s: string, j: number) => <li key={j}>{s}</li>)}
+                                </ul>
+                              </div>
+
+                              <div style={{ color: 'var(--danger)' }}>
+                                <strong style={{ fontSize: '0.8rem', textTransform: 'uppercase' }}>Zayıf Yönleri</strong>
+                                <ul style={{ paddingLeft: '20px', fontSize: '0.9rem', marginTop: '4px' }}>
+                                  {comp.key_weaknesses?.slice(0,3).map((w: string, j: number) => <li key={j}>{w}</li>)}
+                                </ul>
+                              </div>
+                           </div>
+                         ))}
+                       </div>
+
+                    </div>
+                  ))}
                </div>
-             ))}
-           </div>
+             ))
+          ) : (
+             <div style={{ textAlign: 'center', color: 'var(--warning)', padding: '40px', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)' }}>
+                Analiz datası formatı beklenen çok katmanlı yapıda değil. Eski analizi siliyor musunuz?
+             </div>
+          )}
         </div>
       )}
     </div>

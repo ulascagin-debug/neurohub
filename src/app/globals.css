@@ -725,3 +725,62 @@ select.input-field option {
     grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   }
 }
+
+/* ═══════════════════════════════════════════
+   Global Orb Background (Renk Şelalesi)
+   ═══════════════════════════════════════════ */
+.global-orb-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -999;
+  overflow: hidden;
+  pointer-events: none;
+  background-color: var(--bg-main);
+}
+
+.global-gradient-orb {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 160vw;
+  height: 120vh;
+  /* Conic gradient that wraps around with NeuroHub colors (cyan, purple, magenta, orange) */
+  background: conic-gradient(
+    from 0deg at 50% 50%,
+    rgba(6, 182, 212, 0.8) 0deg,      /* Cyan */
+    rgba(139, 92, 246, 0.9) 80deg,    /* NeuroHub Purple */
+    rgba(217, 70, 239, 0.9) 160deg,   /* Magenta */
+    rgba(249, 115, 22, 0.8) 240deg,   /* Orange */
+    rgba(6, 182, 212, 0.8) 360deg     /* Back to Cyan */
+  );
+  /* Make it a ring with a heavily hollow dark center */
+  -webkit-mask-image: radial-gradient(ellipse at center, transparent 45%, black 70%);
+  mask-image: radial-gradient(ellipse at center, transparent 45%, black 70%);
+  
+  /* Extremely heavy blur for the waterfall softness */
+  filter: blur(100px);
+  opacity: 0.35; /* Adjusted for dark mode visibility without blowing out text */
+  border-radius: 50%;
+  
+  /* Initial centering and rotation */
+  margin-top: -60vh;
+  margin-left: -80vw;
+  
+  animation: orb-spin 25s linear infinite;
+  transform-origin: center center;
+}
+
+@keyframes orb-spin {
+  0% { 
+    transform: rotate(0deg) scale(1) skew(10deg, -5deg); 
+  }
+  50% { 
+    transform: rotate(180deg) scale(1.05) skew(-10deg, 5deg); 
+  }
+  100% { 
+    transform: rotate(360deg) scale(1) skew(10deg, -5deg); 
+  }
+}

@@ -28,6 +28,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
+        <div className="global-orb-container">
+          <div className="global-gradient-orb"></div>
+        </div>
         <Providers>
           {children}
         </Providers>

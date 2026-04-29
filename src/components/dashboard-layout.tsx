@@ -8,7 +8,6 @@ import { useEffect, useState } from 'react'
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const [onboardingChecked, setOnboardingChecked] = useState(false)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -16,26 +15,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     }
   }, [status, router])
 
-  // Check onboarding status after authentication
-  useEffect(() => {
-    if (status !== 'authenticated') return
-
-    fetch('/api/auth/onboarding-status')
-      .then(res => res.json())
-      .then(data => {
-        if (data.onboarding_completed === false) {
-          router.push('/setup')
-        } else {
-          setOnboardingChecked(true)
-        }
-      })
-      .catch(() => {
-        // If check fails, allow through (don't block existing users)
-        setOnboardingChecked(true)
-      })
-  }, [status, router])
-
-  if (status === 'loading' || (status === 'authenticated' && !onboardingChecked)) {
+  if (status === 'loading') {
     return (
       <div style={{ 
         minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',

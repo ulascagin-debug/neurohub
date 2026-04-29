@@ -27,7 +27,7 @@ export default function LoginPage() {
     if (result?.error) {
       setError('Email veya şifre hatalı')
     } else {
-      router.push('/')
+      router.push('/dashboard')
     }
     setLoading(false)
   }
@@ -76,7 +76,7 @@ export default function LoginPage() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'linear-gradient(135deg, #0a0a1a 0%, #1a1a3e 50%, #0a0a1a 100%)',
+      background: 'transparent',
       padding: '20px',
     }}>
       <div style={{
