@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 import { validateBody, registerSchema } from '@/lib/validators'
 
 export async function POST(req: Request) {
