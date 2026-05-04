@@ -1,22 +1,23 @@
 import { NextAuthOptions } from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
-import AppleProvider from "next-auth/providers/apple"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import prisma from "./prisma"
 import bcrypt from "bcrypt"
 
-export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
-  providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || "mock-client-id",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "mock-client-secret",
-    }),
-    AppleProvider({
-      clientId: process.env.APPLE_ID || "mock-apple-id",
-      clientSecret: process.env.APPLE_SECRET || "mock-apple-secret",
-    }),
+const buildProviders = () => {
+  const providers = []
+
+  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+    providers.push(
+      GoogleProvider({
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      })
+    )
+  }
+
+  providers.push(
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -25,7 +26,7 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
-        
+
         const user = await prisma.user.findUnique({
           where: { email: credentials.email }
         })
@@ -38,7 +39,14 @@ export const authOptions: NextAuthOptions = {
         return { id: user.id, email: user.email, name: user.name }
       }
     })
-  ],
+  )
+
+  return providers
+}
+
+export const authOptions: NextAuthOptions = {
+  adapter: PrismaAdapter(prisma),
+  providers: buildProviders(),
   session: { strategy: "jwt" },
   callbacks: {
     async session({ session, token }) {
