@@ -84,15 +84,6 @@ export function BusinessSelectorModal({ isOpen, onClose }: ModalProps) {
   const toggleGroup = (level: number) =>
     setExpandedGroups(prev => ({ ...prev, [level]: !prev[level] }))
 
-  const callAPI = async (body: any) => {
-    const res = await fetch('/api/places', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    })
-    return res.json()
-  }
-
   const handleSearch = async () => {
     setStep(3); setIsLoading(true); setSearchInitiated(true)
     setGroupedResults({}); setTotalFound(0); setDiagnostics([]); setApiError('')
@@ -102,66 +93,60 @@ export function BusinessSelectorModal({ isOpen, onClose }: ModalProps) {
     const logs: DiagnosticLog[] = []
 
     try {
-      // Step 1: Geocode
-      setSearchProgress('Konum koordinatları alınıyor...')
-      const geoData = await callAPI({
-        action: 'geocode',
-        address: `${selectedCityName}, ${stateName}, ${countryName}`
-      })
-
-      if (!geoData.lat || !geoData.lng) {
-        setApiError(`"${selectedCityName}, ${stateName}" konumu bulunamadı.`)
-        return
-      }
-      logs.push({ step: 'Geocode', query: `${selectedCityName}, ${stateName}`, resultCount: 1 })
-
-      const { lat, lng } = geoData
       const placeMap = new Map<string, any>()
-      const addPlaces = (places: any[]) =>
-        places?.forEach(p => { if (p.place_id && !placeMap.has(p.place_id)) placeMap.set(p.place_id, p) })
-
-      // Step 2: Search with escalating radius
-      const radii = [2000, 5000, 15000, 30000]
-      for (const r of radii) {
-        setSearchProgress(`${selectedCityName} çevresinde aranıyor (${r / 1000}km)...`)
-        const data = await callAPI({ action: 'search', lat, lng, radius: r, categories: selectedCategories })
-        addPlaces(data.results || [])
-        logs.push({ step: `Yarıçap ${r / 1000}km`, query: selectedCategories.join(', '), resultCount: data.results?.length || 0 })
-        if (placeMap.size >= 15) break
+      const addPlace = (b: any) => {
+        const id = b.url || b.place_id || b.name
+        if (id && !placeMap.has(id)) {
+          placeMap.set(id, {
+            place_id: id,
+            name: b.name,
+            formatted_address: b.address || b.formatted_address || '',
+            rating: b.rating || null,
+            user_ratings_total: b.reviews_count || b.user_ratings_total || null,
+            types: [b.type || selectedCategories[0]],
+            maps_url: b.url || '',
+            phone: b.phone || '',
+            website: b.website || '',
+            matched_array: selectedCategories,
+            match_count: 1,
+          })
+        }
       }
 
-      // Step 3: Categorize results
-      setSearchProgress('Sonuçlar sınıflandırılıyor...')
+      // Search each selected category via Google Maps scraper
+      for (const cat of selectedCategories) {
+        setSearchProgress(`"${cat}" kategorisinde Google Maps taranıyor...`)
+        try {
+          const res = await fetch('/api/analyzer/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              category: cat,
+              city: stateName || selectedCityName,
+              district: selectedCityName,
+              country: countryName,
+            })
+          })
+          const data = await res.json()
+          const list: any[] = data.businesses || []
+          list.forEach(addPlace)
+          logs.push({ step: cat, query: `${selectedCityName}, ${stateName}`, resultCount: list.length })
+        } catch (e) {
+          logs.push({ step: cat, query: selectedCityName, resultCount: 0 })
+        }
+      }
+
+      setSearchProgress('Sonuçlar hazırlanıyor...')
       const allPlaces = Array.from(placeMap.values())
+      setTotalFound(allPlaces.length)
 
-      let scoredPlaces = allPlaces.map(place => {
-        const matchedCats = selectedCategories.filter(cat => placeMatchesCategory(place, cat))
-        return { ...place, matched_array: matchedCats, match_count: matchedCats.length }
-      }).filter(p => p.match_count > 0)
-
-      // Fallback: show all results if no category match (OSM data varies)
-      if (scoredPlaces.length === 0 && allPlaces.length > 0) {
-        scoredPlaces = allPlaces.map(p => ({ ...p, matched_array: selectedCategories, match_count: 1 }))
-      }
-
-      setTotalFound(scoredPlaces.length)
-
-      const grouped: Record<number, any[]> = {}
-      scoredPlaces.forEach(p => {
-        if (!grouped[p.match_count]) grouped[p.match_count] = []
-        grouped[p.match_count].push(p)
-      })
-      Object.values(grouped).forEach(arr => arr.sort((a, b) => (b.rating || 0) - (a.rating || 0)))
-
+      const grouped: Record<number, any[]> = { 1: allPlaces }
       setGroupedResults(grouped)
       setDiagnostics(logs)
-
-      const levels = Object.keys(grouped).map(Number)
-      const maxLevel = levels.length ? Math.max(...levels) : 0
-      setExpandedGroups(Object.fromEntries(levels.map(k => [k, k === maxLevel])))
+      setExpandedGroups({ 1: true })
 
     } catch (err) {
-      console.error('OSM Search error:', err)
+      console.error('Search error:', err)
       setApiError(String(err))
     } finally {
       setIsLoading(false)
@@ -282,7 +267,7 @@ export function BusinessSelectorModal({ isOpen, onClose }: ModalProps) {
             <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
               <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setStep(1)}><span>&larr;</span> Geri</button>
               <button className="btn btn-primary" style={{ flex: 2 }} disabled={!isStep2Valid} onClick={handleSearch}>
-                🔍 OpenStreetMap'te Ara <span>&rarr;</span>
+                🔍 Google Maps'te Ara <span>&rarr;</span>
               </button>
             </div>
           </div>
@@ -309,7 +294,7 @@ export function BusinessSelectorModal({ isOpen, onClose }: ModalProps) {
                 <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
                   <div className="loading-spinner" style={{ margin: '0 auto 15px' }} />
                   <p style={{ margin: 0, fontWeight: 500 }}>{searchProgress}</p>
-                  <p style={{ fontSize: '0.8rem', marginTop: '8px', opacity: 0.6 }}>OpenStreetMap üzerinden taranıyor...</p>
+                  <p style={{ fontSize: '0.8rem', marginTop: '8px', opacity: 0.6 }}>Google Maps üzerinden yerel işletmeler taranıyor...</p>
                 </div>
               )}
 
