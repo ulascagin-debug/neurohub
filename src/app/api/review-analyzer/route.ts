@@ -75,18 +75,21 @@ export async function POST(req: Request) {
     };
 
     const processSubset = async (subset: string[]) => {
-      const subsetString = subset.join(' ');
+      const subsetString = subset.join(', ');
       
       // --- STEP 1: Search for real competitors ---
-      const searchCategory = subsetString ? `${business_name} ${subsetString}`.trim() : business_name;
+      // Use ONLY the category (not business name) to find competitors in the area
+      const searchCategory = subsetString || business_name;
       
       const searchResponse = await fetch(`${ANALYZER_URL}/search`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
           category: searchCategory,
-          city: location,
-          country: country || 'Turkey'
+          city,
+          district: district || '',
+          country: country || 'Turkey',
+          max_businesses: 20,
         }),
       })
 
