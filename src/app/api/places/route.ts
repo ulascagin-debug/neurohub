@@ -1,67 +1,101 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 
-// Google Places API proxy — keeps API key server-side
+// OSM category → Overpass tags mapping (no API key needed)
+const OSM_CATEGORY_TAGS: Record<string, string[]> = {
+  "Kafe":          ["amenity=cafe", "amenity=coffee_shop"],
+  "Bar/Lounge":    ["amenity=bar", "amenity=pub", "amenity=nightclub"],
+  "Restoran":      ["amenity=restaurant", "amenity=fast_food"],
+  "Kuaför/Berber": ["shop=hairdresser", "shop=beauty"],
+  "Diş Kliniği":  ["amenity=dentist"],
+  "Veteriner":     ["amenity=veterinary"],
+  "Spor Salonu":   ["leisure=fitness_centre", "amenity=gym"],
+  "Spa":           ["leisure=spa", "leisure=sauna"],
+  "Otel":          ["tourism=hotel", "tourism=hostel", "tourism=guest_house", "tourism=motel"],
+  "Eczane":        ["amenity=pharmacy"],
+  "Market":        ["shop=supermarket", "shop=convenience"],
+  "Pastane/Fırın": ["shop=bakery", "shop=pastry"],
+};
+
+function buildOverpassQuery(tags: string[], lat: number, lng: number, radius: number): string {
+  const parts = tags.map(tag => {
+    const [k, v] = tag.split('=');
+    return `node["${k}"="${v}"](around:${radius},${lat},${lng});\nway["${k}"="${v}"](around:${radius},${lat},${lng});`;
+  }).join('\n');
+  return `[out:json][timeout:25];\n(\n${parts}\n);\nout center tags 60;`;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { action, query, location, radius, keyword, type, pagetoken } = body;
+    const { action } = body;
 
-    const apiKey = process.env.GOOGLE_PLACES_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "GOOGLE_PLACES_API_KEY is not set in .env" }, { status: 500 });
-    }
-
-    // ACTION: geocode — convert address to lat/lng
+    // ── Geocode: address → lat/lng via Nominatim ──
     if (action === 'geocode') {
       const { address } = body;
-      if (!address) return NextResponse.json({ error: "Missing address" }, { status: 400 });
-      
-      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
-      const res = await fetch(url);
+      if (!address) return NextResponse.json({ error: 'Missing address' }, { status: 400 });
+
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&addressdetails=1`;
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'NeuroHub/1.0 (info@neurohub.life)', 'Accept-Language': 'tr' }
+      });
       const data = await res.json();
 
-      if (data.status !== "OK" || !data.results?.length) {
-        return NextResponse.json({ error: "Geocoding failed", status: data.status, details: data.error_message || null });
-      }
-      const loc = data.results[0].geometry.location;
-      return NextResponse.json({ lat: loc.lat, lng: loc.lng });
+      if (!data.length) return NextResponse.json({ error: 'Location not found', lat: null, lng: null });
+      return NextResponse.json({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
     }
 
-    // ACTION: textsearch
-    if (action === 'textsearch') {
-      let url: string;
-      if (pagetoken) {
-        url = `https://maps.googleapis.com/maps/api/place/textsearch/json?pagetoken=${encodeURIComponent(pagetoken)}&key=${apiKey}`;
-      } else {
-        if (!query) return NextResponse.json({ error: "Missing query" }, { status: 400 });
-        url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&language=tr&key=${apiKey}`;
-      }
-      const res = await fetch(url);
-      const data = await res.json();
-      return NextResponse.json(data);
+    // ── Search: lat/lng + categories → businesses via Overpass ──
+    if (action === 'search') {
+      const { lat, lng, radius = 5000, categories } = body;
+      if (!lat || !lng) return NextResponse.json({ error: 'Missing lat/lng' }, { status: 400 });
+
+      const catArray: string[] = Array.isArray(categories) ? categories : [categories];
+      const tags: string[] = [...new Set(
+        catArray.flatMap(cat => OSM_CATEGORY_TAGS[cat] ?? [`amenity=${cat.toLowerCase()}`])
+      )];
+
+      const query = buildOverpassQuery(tags, lat, lng, radius);
+      const overpassRes = await fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `data=${encodeURIComponent(query)}`
+      });
+
+      const osmData = await overpassRes.json();
+      const elements: any[] = osmData.elements || [];
+
+      const results = elements
+        .filter(el => el.tags?.name)
+        .map(el => {
+          const elLat = el.lat ?? el.center?.lat;
+          const elLng = el.lon ?? el.center?.lon;
+          const addrParts = [
+            el.tags['addr:street'] ? `${el.tags['addr:street']} ${el.tags['addr:housenumber'] || ''}`.trim() : null,
+            el.tags['addr:district'] || el.tags['addr:city'] || null,
+          ].filter(Boolean);
+          return {
+            place_id: `osm-${el.type}-${el.id}`,
+            name: el.tags.name,
+            formatted_address: addrParts.join(', ') || el.tags['addr:full'] || '',
+            types: ['amenity', 'shop', 'tourism', 'leisure']
+              .filter(k => el.tags[k])
+              .map(k => el.tags[k]),
+            phone: el.tags.phone || el.tags['contact:phone'] || '',
+            website: el.tags.website || el.tags['contact:website'] || '',
+            maps_url: elLat && elLng ? `https://www.google.com/maps/search/?api=1&query=${elLat},${elLng}` : '',
+            lat: elLat,
+            lng: elLng,
+          };
+        });
+
+      return NextResponse.json({ results, total: results.length });
     }
 
-    // ACTION: nearbysearch
-    if (action === 'nearbysearch') {
-      let url: string;
-      if (pagetoken) {
-        url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?pagetoken=${encodeURIComponent(pagetoken)}&key=${apiKey}`;
-      } else {
-        if (!location || !radius) return NextResponse.json({ error: "Missing location or radius" }, { status: 400 });
-        url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${encodeURIComponent(location)}&radius=${radius}&language=tr&key=${apiKey}`;
-        if (keyword) url += `&keyword=${encodeURIComponent(keyword)}`;
-        if (type) url += `&type=${encodeURIComponent(type)}`;
-      }
-      const res = await fetch(url);
-      const data = await res.json();
-      return NextResponse.json(data);
-    }
-
-    return NextResponse.json({ error: "Invalid action. Use: geocode, textsearch, nearbysearch" }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid action. Use: geocode, search' }, { status: 400 });
 
   } catch (error) {
-    console.error("Places API proxy error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error('OSM API proxy error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
