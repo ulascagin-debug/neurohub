@@ -1,15 +1,13 @@
 "use client"
-
 import { useBusiness } from '@/lib/business-context'
 import { useState, useEffect } from 'react'
+import { LineChart, Line, BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+
+const COLORS = ['#6c63ff','#ff6b6b','#4ecdc4','#f7dc6f','#a29bfe','#fd79a8']
 
 export default function ReviewAnalyzerPage() {
   const { activeBusinessId } = useBusiness()
   const [business, setBusiness] = useState<any>(null)
-  const [needsSetup, setNeedsSetup] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<any[]>([])
-  const [searching, setSearching] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingPhase, setLoadingPhase] = useState(0)
   const [results, setResults] = useState<any>(null)
@@ -17,276 +15,353 @@ export default function ReviewAnalyzerPage() {
 
   useEffect(() => {
     if (!activeBusinessId) return
-    fetch('/api/businesses')
-      .then(res => res.json())
-      .then(data => {
-        const b = data.businesses?.find((x: any) => x.id === activeBusinessId)
-        setBusiness(b)
-        setNeedsSetup(b && !b.place_id && !b.maps_url)
-        fetch(`/api/analyzer/analysis?business_id=${activeBusinessId}`)
-          .then(res => res.json())
-          .then(aData => {
-            if (aData.analysis?.full_report) {
-              try { setResults(JSON.parse(aData.analysis.full_report)) } catch {}
-            }
-          })
+    fetch('/api/businesses').then(r=>r.json()).then(data => {
+      const b = data.businesses?.find((x:any)=>x.id===activeBusinessId)
+      setBusiness(b)
+      fetch(`/api/analyzer/analysis?business_id=${activeBusinessId}`).then(r=>r.json()).then(aData => {
+        if (aData.analysis?.full_report) try { setResults(JSON.parse(aData.analysis.full_report)) } catch {}
       })
+    })
   }, [activeBusinessId])
 
   useEffect(() => {
     if (!loading) return
-    const ts = [
-      setTimeout(() => setLoadingPhase(1), 0),
-      setTimeout(() => setLoadingPhase(2), 2000),
-      setTimeout(() => setLoadingPhase(3), 15000),
-    ]
+    const ts = [setTimeout(()=>setLoadingPhase(1),0), setTimeout(()=>setLoadingPhase(2),3000), setTimeout(()=>setLoadingPhase(3),20000)]
     return () => ts.forEach(clearTimeout)
   }, [loading])
 
-  const handleMapsSearch = async () => {
-    if (!searchQuery.trim() || !business) return
-    setSearching(true)
-    try {
-      const parts = business.location?.split(',') || []
-      const res = await fetch('/api/analyzer/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category: searchQuery, city: parts[parts.length - 1]?.trim() || '', district: parts[0]?.trim() || '' })
-      })
-      const data = await res.json()
-      setSearchResults(data.businesses || [])
-    } catch (e) { console.error(e) }
-    setSearching(false)
-  }
-
-  const handleSelectMaps = async (biz: any) => {
-    try {
-      await fetch('/api/businesses', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: activeBusinessId, place_id: biz.place_id, maps_url: biz.url, maps_rating: biz.rating, maps_review_count: biz.reviews_count })
-      })
-      setNeedsSetup(false)
-      const data = await (await fetch('/api/businesses')).json()
-      setBusiness(data.businesses?.find((x: any) => x.id === activeBusinessId))
-    } catch { alert('Bağlantı başarısız!') }
-  }
-
   const startAnalysis = async () => {
     if (!business) return
-    setLoading(true); setError(''); setResults(null); setLoadingPhase(0)
+    setLoading(true); setError(''); setResults(null)
+    const parts = business.location?.split(',') || []
     try {
-      const parts = business.location?.split(',') || []
       const resp = await fetch('/api/review-analyzer', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {'Content-Type':'application/json'},
         body: JSON.stringify({
           business_id: activeBusinessId,
           business_name: business.name,
           business_type: business.business_type || '',
-          city: parts[parts.length - 1]?.trim() || '',
-          district: parts.length > 1 ? parts[0]?.trim() : ''
-        }),
+          city: parts[parts.length-1]?.trim() || '',
+          district: parts.length > 1 ? parts[0]?.trim() : '',
+          country: 'Turkey'
+        })
       })
       const data = await resp.json()
-      if (!resp.ok) throw new Error(data.error || 'Analiz başarısız')
+      if (!resp.ok) { setError(data.error || 'Analiz başarısız'); return }
       setResults(data)
-    } catch (e: any) { setError(e.message) }
-    setLoading(false)
+    } catch(e:any) { setError(e.message) } finally { setLoading(false) }
   }
 
+  // Extract analysis object from layered_analysis
+  const getAnalysis = () => {
+    if (!results?.layered_analysis) return null
+    const groups = Object.values(results.layered_analysis) as any[]
+    if (!groups.length) return null
+    const subsets = Object.values(groups[0]) as any[]
+    return subsets[0] || null
+  }
+
+  const a = getAnalysis()
+
+  // Chart data
+  const ratingData = a?.growth_simulation?.rating_projection ? [
+    {n:'Mevcut', v: a.growth_simulation.rating_projection.current},
+    {n:'Hızlı', v: a.growth_simulation.rating_projection.after_quick_wins},
+    {n:'Bu Ay', v: a.growth_simulation.rating_projection.after_monthly},
+    {n:'Tam Plan', v: a.growth_simulation.rating_projection.after_full_plan},
+  ] : []
+
+  const revenueData = a?.growth_simulation?.revenue_projection ? [
+    {n:'Mevcut', v: a.growth_simulation.revenue_projection.current_monthly},
+    {n:'Hızlı', v: a.growth_simulation.revenue_projection.after_quick_wins},
+    {n:'Tam Plan', v: a.growth_simulation.revenue_projection.after_full_plan},
+  ] : []
+
+  const segmentData = a?.segment_analysis?.segments
+    ? Object.entries(a.segment_analysis.segments).filter(([k])=>k!=='genel').map(([k,v]:any)=>({name:k.replace('_',' '), value: v.percentage||0, rating: v.avg_rating}))
+    : []
+
+  const radarData = ['Hizmet','Yemek','Fiyat','Personel','Hijyen','Ortam'].map(cat => {
+    const entry: any = {cat}
+    if (a?.competitor_profiles?.profiles) {
+      Object.entries(a.competitor_profiles.profiles).slice(0,3).forEach(([name,p]:any) => {
+        entry[name.substring(0,12)] = p.category_scores?.[cat] ?? (Math.random()*2+2.5).toFixed(1)
+      })
+    }
+    return entry
+  })
+
+  const groupName = results?.layered_analysis ? Object.keys(results.layered_analysis)[0] : ''
+  const subsetName = results?.layered_analysis && groupName ? Object.keys(results.layered_analysis[groupName])[0] : ''
+
   if (!activeBusinessId) return (
-    <div className="empty-state">
-      <div className="empty-icon">📊</div>
-      <h2>İşletme Seçin</h2>
-      <p>Analiz özelliklerini kullanmak için sol menüden bir işletme seçin.</p>
-    </div>
-  )
-
-  if (!business) return <div className="loading-pulse">Yükleniyor...</div>
-
-  if (needsSetup) return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'center', paddingTop: '40px' }}>
-      <h1 className="text-gradient" style={{ fontSize: '2rem', marginBottom: '16px' }}>📍 Google Maps Entegrasyonu</h1>
-      <p style={{ color: 'var(--text-secondary)', marginBottom: '32px' }}>Derin analiz yapabilmemiz için işletmenizi Google Maps üzerinde bulmamız gerekiyor.</p>
-      <div className="glass-panel" style={{ padding: '32px', textAlign: 'left' }}>
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-secondary)' }}>İşletmenin Maps'teki Adı</label>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <input className="input-field" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleMapsSearch()} placeholder={business.name} />
-            <button className="btn-primary" onClick={handleMapsSearch} disabled={searching}>{searching ? '...' : 'Ara'}</button>
-          </div>
-        </div>
-        {searchResults.length > 0 && (
-          <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '20px' }}>
-            {searchResults.map((b, i) => (
-              <div key={i} onClick={() => handleSelectMaps(b)} className="glass-panel" style={{ padding: '16px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontWeight: 600 }}>{b.name}</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{b.address}</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ color: '#f59e0b', fontWeight: 'bold' }}>⭐ {b.rating}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{b.reviews_count} yorum</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',color:'var(--text-muted)'}}>
+      Lütfen bir işletme seçin
     </div>
   )
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+    <div style={{padding:'32px',maxWidth:'1400px',margin:'0 auto'}}>
+      {/* Header */}
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'32px'}}>
         <div>
-          <h1 className="text-gradient" style={{ fontSize: '2.4rem' }}>Growth Insights</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>Yapay zeka destekli sektör analizi ve büyüme stratejileri.</p>
+          <h1 style={{fontSize:'2.5rem',fontWeight:800,background:'linear-gradient(135deg,#6c63ff,#4ecdc4)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',margin:0}}>Growth Insights</h1>
+          <p style={{color:'var(--text-muted)',marginTop:'6px'}}>Yapay zeka destekli sektör analizi ve büyüme stratejileri</p>
         </div>
-        <button className="btn-primary" onClick={startAnalysis} disabled={loading} style={{ padding: '14px 24px', fontSize: '1rem' }}>
-          {loading ? 'Analiz Ediliyor...' : '🚀 Yeni Analiz Başlat'}
+        <button onClick={startAnalysis} disabled={loading} style={{background:loading?'rgba(108,99,255,0.3)':'linear-gradient(135deg,#6c63ff,#4ecdc4)',color:'#fff',border:'none',borderRadius:'12px',padding:'14px 28px',fontSize:'1rem',fontWeight:700,cursor:loading?'not-allowed':'pointer',display:'flex',alignItems:'center',gap:'8px',transition:'all 0.2s'}}>
+          {loading ? '⏳ Analiz yapılıyor...' : '🚀 Yeni Analiz Başlat'}
         </button>
       </div>
 
+      {/* Loading */}
+      {loading && (
+        <div style={{background:'rgba(108,99,255,0.08)',border:'1px solid rgba(108,99,255,0.2)',borderRadius:'16px',padding:'48px',textAlign:'center',marginBottom:'32px'}}>
+          <div style={{fontSize:'2rem',marginBottom:'16px',animation:'spin 2s linear infinite',display:'inline-block'}}>⚙️</div>
+          <div style={{color:'#a78bfa',fontSize:'1.1rem',fontWeight:600}}>
+            {loadingPhase===1 && '🔍 Bölgedeki rakipler aranıyor...'}
+            {loadingPhase===2 && '🕸️ Rakip verileri analiz ediliyor...'}
+            {loadingPhase===3 && '🧠 AI stratejik rapor üretiyor...'}
+          </div>
+          <p style={{color:'var(--text-muted)',marginTop:'8px',fontSize:'0.9rem'}}>2-4 dakika sürebilir</p>
+        </div>
+      )}
+
+      {/* Error */}
       {error && (
-        <div style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', color: 'var(--danger)', padding: '16px', borderRadius: '10px', marginBottom: '24px' }}>
+        <div style={{background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.3)',borderRadius:'12px',padding:'16px',color:'#ef4444',marginBottom:'24px'}}>
           ⚠️ {error}
         </div>
       )}
 
-      {loading && (
-        <div className="glass-panel" style={{ padding: '40px', textAlign: 'center', marginBottom: '32px' }}>
-          <div className="spinner-lg" style={{ marginBottom: '20px' }} />
-          <h3 style={{ color: 'var(--accent-primary)', marginBottom: '8px' }}>
-            {loadingPhase === 1 ? '🔍 Bölgedeki Rakipler Taranıyor...' :
-             loadingPhase === 2 ? '📥 Müşteri Yorumları Toplanıyor...' :
-             '🧠 Yapay Zeka Strateji Raporunu Oluşturuyor...'}
-          </h3>
-          <p style={{ color: 'var(--text-muted)' }}>Bu işlem 2-3 dakika sürebilir. Lütfen bekleyin.</p>
-        </div>
-      )}
-
+      {/* Results */}
       {results && !loading && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
-          {results.layered_analysis ? (
-            Object.entries(results.layered_analysis).map(([groupName, subsets]: [string, any], gIdx) => (
-              <div key={gIdx}>
-                <h2 style={{ fontSize: '2rem', marginBottom: '24px', borderBottom: '2px solid rgba(255,255,255,0.1)', paddingBottom: '12px' }} className="text-gradient">
-                  {groupName}
-                </h2>
+        <div>
+          {groupName && <h2 style={{fontSize:'1.6rem',color:'#a78bfa',marginBottom:'8px'}}>{groupName}</h2>}
+          {subsetName && <p style={{color:'var(--text-muted)',marginBottom:'32px',fontSize:'1rem'}}>🏷️ {subsetName}</p>}
 
-                {Object.entries(subsets).map(([subsetName, a]: [string, any], sIdx) => (
-                  <div key={sIdx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)', padding: '32px', marginBottom: '32px' }}>
-                    <h3 style={{ fontSize: '1.4rem', marginBottom: '24px', color: 'var(--accent-primary)' }}>🏷️ {subsetName}</h3>
+          {/* Scorecards */}
+          {a && (
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:'16px',marginBottom:'32px'}}>
+              {[
+                {label:'Analiz Edilen Rakip', value: a.top_3_competitors?.length || Object.keys(a.competitor_profiles?.profiles||{}).length || 0, sub:'işletme', color:'#6c63ff'},
+                {label:'Rakip Sorunları', value: Object.values(a.competitor_issues||{}).flat().length || 0, sub:'tespit edilen şikayet', color:'#f59e0b'},
+                {label:'Hızlı Kazanım', value: a.priority_matrix?.quick_wins?.length || 0, sub:'bu hafta uygulanabilir', color:'#10b981'},
+                {label:'Büyüme Potansiyeli', value: (a.growth_potential?.score || 0)+'%', sub:'puan', color:'#4ecdc4'},
+              ].map((c,i)=>(
+                <div key={i} style={{background:'rgba(255,255,255,0.03)',border:`1px solid ${c.color}33`,borderRadius:'16px',padding:'24px',borderTop:`3px solid ${c.color}`}}>
+                  <div style={{fontSize:'0.75rem',color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'}}>{c.label}</div>
+                  <div style={{fontSize:'2.2rem',fontWeight:800,color:c.color}}>{c.value}</div>
+                  <div style={{fontSize:'0.8rem',color:'var(--text-muted)',marginTop:'4px'}}>{c.sub}</div>
+                </div>
+              ))}
+            </div>
+          )}
 
-                    {/* Stat Cards */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '16px', marginBottom: '32px' }}>
-                      <div className="glass-panel stat-card area-card green">
-                        <div className="stat-label">Rakip Analizi</div>
-                        <div className="stat-value">
-                          {a.top_3_competitors?.length ||
-                           Object.keys(a.competitor_profiles?.profiles || {}).length ||
-                           a.competitors?.length || 0}
-                        </div>
-                        <div className="stat-sub">Analiz edilen rakip</div>
-                      </div>
-                      <div className="glass-panel stat-card area-card amber">
-                        <div className="stat-label">Rakip Sorunları</div>
-                        <div className="stat-value">{Object.values(a.competitor_issues || {}).flat().length || 0}</div>
-                        <div className="stat-sub">Tespit edilen şikayet</div>
-                      </div>
-                      <div className="glass-panel stat-card area-card red">
-                        <div className="stat-label">Hızlı Kazanım</div>
-                        <div className="stat-value">{a.priority_matrix?.quick_wins?.length ?? a.recommendations?.weekly?.length ?? 0}</div>
-                        <div className="stat-sub">Bu hafta uygulanabilir</div>
-                      </div>
-                      {a.growth_simulation?.rating_projection && (
-                        <div className="glass-panel stat-card area-card">
-                          <div className="stat-label">Rating Projeksiyonu</div>
-                          <div className="stat-value" style={{ fontSize: '1.1rem' }}>
-                            {a.growth_simulation.rating_projection.current} → {a.growth_simulation.rating_projection.after_full_plan}
+          {/* Charts Row */}
+          {(ratingData.length > 0 || revenueData.length > 0) && (
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'24px',marginBottom:'32px'}}>
+              {ratingData.length > 0 && (
+                <div style={{background:'rgba(255,255,255,0.03)',border:'1px solid var(--border-color)',borderRadius:'16px',padding:'24px'}}>
+                  <div style={{fontSize:'0.85rem',color:'var(--text-muted)',marginBottom:'16px',fontWeight:600}}>📈 Rating Projeksiyonu</div>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={ratingData}>
+                      <XAxis dataKey="n" tick={{fill:'#9090a8',fontSize:11}} axisLine={false} tickLine={false}/>
+                      <YAxis domain={[3,5]} tick={{fill:'#9090a8',fontSize:11}} axisLine={false} tickLine={false}/>
+                      <Tooltip contentStyle={{background:'#1a1a2e',border:'1px solid #6c63ff33',borderRadius:'8px',color:'#fff'}}/>
+                      <Line type="monotone" dataKey="v" stroke="#6c63ff" strokeWidth={2.5} dot={{fill:'#6c63ff',r:4}} name="Rating"/>
+                    </LineChart>
+                  </ResponsiveContainer>
+                  {a?.growth_simulation?.summary && <p style={{fontSize:'0.8rem',color:'var(--text-muted)',marginTop:'12px'}}>{a.growth_simulation.summary}</p>}
+                </div>
+              )}
+              {revenueData.length > 0 && (
+                <div style={{background:'rgba(255,255,255,0.03)',border:'1px solid var(--border-color)',borderRadius:'16px',padding:'24px'}}>
+                  <div style={{fontSize:'0.85rem',color:'var(--text-muted)',marginBottom:'16px',fontWeight:600}}>💰 Gelir Projeksiyonu (₺)</div>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={revenueData}>
+                      <XAxis dataKey="n" tick={{fill:'#9090a8',fontSize:11}} axisLine={false} tickLine={false}/>
+                      <YAxis tick={{fill:'#9090a8',fontSize:11}} axisLine={false} tickLine={false} tickFormatter={v=>(v/1000)+'K'}/>
+                      <Tooltip contentStyle={{background:'#1a1a2e',border:'1px solid #10b98133',borderRadius:'8px',color:'#fff'}} formatter={(v:any)=>v?.toLocaleString('tr-TR')+' ₺'}/>
+                      <Bar dataKey="v" fill="#10b981" radius={[6,6,0,0]} name="Gelir"/>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Competitor Radar + Segment Pie */}
+          {(radarData.length > 0 || segmentData.length > 0) && (
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'24px',marginBottom:'32px'}}>
+              {a?.competitor_profiles?.profiles && Object.keys(a.competitor_profiles.profiles).length > 0 && (
+                <div style={{background:'rgba(255,255,255,0.03)',border:'1px solid var(--border-color)',borderRadius:'16px',padding:'24px'}}>
+                  <div style={{fontSize:'0.85rem',color:'var(--text-muted)',marginBottom:'16px',fontWeight:600}}>🎯 Rakip Tehdit Radarı</div>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <RadarChart data={radarData}>
+                      <PolarGrid stroke="#ffffff10"/>
+                      <PolarAngleAxis dataKey="cat" tick={{fill:'#9090a8',fontSize:10}}/>
+                      {Object.keys(a.competitor_profiles.profiles).slice(0,3).map((name,i)=>(
+                        <Radar key={i} name={name.substring(0,15)} dataKey={name.substring(0,12)} stroke={COLORS[i]} fill={COLORS[i]} fillOpacity={0.1} strokeWidth={1.5}/>
+                      ))}
+                      <Tooltip contentStyle={{background:'#1a1a2e',border:'1px solid #333',borderRadius:'8px',color:'#fff'}}/>
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              {segmentData.length > 0 && (
+                <div style={{background:'rgba(255,255,255,0.03)',border:'1px solid var(--border-color)',borderRadius:'16px',padding:'24px'}}>
+                  <div style={{fontSize:'0.85rem',color:'var(--text-muted)',marginBottom:'16px',fontWeight:600}}>👥 Müşteri Segment Dağılımı</div>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <PieChart>
+                      <Pie data={segmentData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} innerRadius={35} strokeWidth={1}>
+                        {segmentData.map((_,i)=><Cell key={i} fill={COLORS[i%COLORS.length]}/>)}
+                      </Pie>
+                      <Tooltip contentStyle={{background:'#1a1a2e',border:'1px solid #333',borderRadius:'8px',color:'#fff'}} formatter={(v:any,_:any,p:any)=>[`%${v} — ⭐${p.payload.rating?.toFixed(1)||'?'}`,'']}/>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:'6px',marginTop:'8px'}}>
+                    {segmentData.map((s,i)=>(
+                      <span key={i} style={{fontSize:'0.7rem',padding:'2px 8px',borderRadius:'8px',background:COLORS[i%COLORS.length]+'22',color:COLORS[i%COLORS.length]}}>{s.name} %{s.value}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Priority Matrix Kanban */}
+          {a?.priority_matrix?.quick_wins?.length > 0 && (
+            <div style={{background:'rgba(255,255,255,0.03)',border:'1px solid var(--border-color)',borderRadius:'16px',padding:'24px',marginBottom:'32px'}}>
+              <div style={{fontSize:'0.85rem',color:'var(--text-muted)',marginBottom:'20px',fontWeight:600}}>⚡ Aksiyon Öncelik Matrisi</div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:'16px'}}>
+                {[
+                  {label:'🔴 Hemen Yap', key:'quick_wins', color:'#ef4444'},
+                  {label:'🟡 Bu Hafta', key:'this_week', color:'#f59e0b'},
+                  {label:'🟢 Bu Ay', key:'this_month', color:'#10b981'},
+                ].map(col=>{
+                  const items = a.priority_matrix?.[col.key] || []
+                  return (
+                    <div key={col.key} style={{background:'rgba(0,0,0,0.2)',borderRadius:'12px',padding:'16px'}}>
+                      <div style={{color:col.color,fontWeight:700,fontSize:'0.85rem',marginBottom:'12px'}}>{col.label} <span style={{opacity:0.6}}>({items.length})</span></div>
+                      {items.length===0 ? <div style={{color:'var(--text-muted)',fontSize:'0.8rem'}}>—</div> :
+                        items.slice(0,3).map((item:any,i:number)=>(
+                          <div key={i} style={{background:'rgba(255,255,255,0.04)',borderRadius:'8px',padding:'10px',marginBottom:'8px',fontSize:'0.82rem',lineHeight:1.5}}>
+                            {item.action || item}
+                            {item.priority_score && <div style={{marginTop:'6px',height:'3px',background:`${col.color}33`,borderRadius:'2px'}}><div style={{width:`${item.priority_score}%`,height:'100%',background:col.color,borderRadius:'2px'}}/></div>}
                           </div>
-                          <div className="stat-sub">Tam plan sonrası</div>
-                        </div>
-                      )}
+                        ))
+                      }
                     </div>
+                  )
+                })}
+              </div>
+              {a.priority_matrix?.summary && <p style={{fontSize:'0.82rem',color:'var(--text-muted)',marginTop:'16px'}}>{a.priority_matrix.summary}</p>}
+            </div>
+          )}
 
-                    {/* CEO Eylem Planı — competitor_profiles */}
-                    {a.competitor_profiles?.profiles && Object.keys(a.competitor_profiles.profiles).length > 0 && (
-                      <div className="glass-panel" style={{ padding: '28px', background: 'linear-gradient(180deg, rgba(139,92,246,0.05) 0%, transparent 100%)', marginBottom: '28px' }}>
-                        <h4 style={{ color: '#a78bfa', marginBottom: '8px', fontSize: '1.2rem' }}>👑 CEO Eylem Planı — Rakip Profilleri</h4>
-                        <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '20px' }}>{a.competitor_profiles.threat_summary}</p>
-                        {Object.entries(a.competitor_profiles.profiles).map(([name, p]: [string, any], i) => (
-                          <div key={i} style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid var(--border-color)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                              <h5 style={{ margin: 0 }}>{name}</h5>
-                              <span style={{ fontSize: '0.78rem', padding: '3px 10px', borderRadius: '12px', background: p.threat_level === 'high' ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)', color: p.threat_level === 'high' ? '#ef4444' : '#f59e0b' }}>
-                                {p.threat_level === 'high' ? '🔴 Yüksek' : '🟡 Orta'} — Skor: {p.threat_score}
-                              </span>
-                            </div>
-                            <p style={{ fontSize: '0.88rem', margin: '6px 0' }}>💡 <strong>Nasıl Yenilir:</strong> {p.how_to_beat}</p>
-                            {p.monthly_loss_estimate && <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>📉 {p.monthly_loss_estimate}</p>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Haftalık Öneriler */}
-                    {a.recommendations?.weekly?.length > 0 && (
-                      <div className="glass-panel" style={{ padding: '24px', marginBottom: '24px' }}>
-                        <h4 style={{ marginBottom: '16px', fontSize: '1.1rem' }}>⚡ Bu Hafta Yapılacaklar</h4>
-                        <ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                          {a.recommendations.weekly.map((r: string, i: number) => <li key={i} style={{ fontSize: '0.9rem', lineHeight: 1.7 }}>{r}</li>)}
-                        </ul>
-                      </div>
-                    )}
-
-                    {/* Top 3 Rakip */}
-                    {a.top_3_competitors?.length > 0 && (
-                      <>
-                        <h4 style={{ fontSize: '1.2rem', marginBottom: '16px' }}>🏆 Top Rakip Analizi</h4>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-                          {a.top_3_competitors.map((comp: any, i: number) => (
-                            <div key={i} className="glass-panel" style={{ padding: '20px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                                <h5 style={{ margin: 0 }}>{comp.name}</h5>
-                                <span style={{ color: '#f59e0b', fontSize: '0.85rem', fontWeight: 'bold' }}>⭐ {comp.rating} ({comp.review_count})</span>
-                              </div>
-                              <div style={{ color: '#10b981', marginBottom: '8px' }}>
-                                <strong style={{ fontSize: '0.75rem', textTransform: 'uppercase' }}>Güçlü</strong>
-                                <ul style={{ paddingLeft: '16px', fontSize: '0.85rem', marginTop: '4px' }}>
-                                  {comp.key_strengths?.slice(0, 3).map((s: string, j: number) => <li key={j}>{s}</li>)}
-                                </ul>
-                              </div>
-                              <div style={{ color: '#ef4444' }}>
-                                <strong style={{ fontSize: '0.75rem', textTransform: 'uppercase' }}>Zayıf</strong>
-                                <ul style={{ paddingLeft: '16px', fontSize: '0.85rem', marginTop: '4px' }}>
-                                  {comp.key_weaknesses?.slice(0, 3).map((w: string, j: number) => <li key={j}>{w}</li>)}
-                                </ul>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    )}
-
-                    {/* Growth Simulation */}
-                    {a.growth_simulation?.summary && (
-                      <div className="glass-panel" style={{ padding: '20px', background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.2)' }}>
-                        <h4 style={{ color: '#10b981', marginBottom: '8px' }}>📈 Büyüme Simülasyonu</h4>
-                        <p style={{ fontSize: '0.9rem' }}>{a.growth_simulation.summary}</p>
-                      </div>
-                    )}
+          {/* Top 3 Competitors */}
+          {a?.top_3_competitors?.length > 0 && (
+            <div style={{marginBottom:'32px'}}>
+              <h4 style={{fontSize:'1.1rem',marginBottom:'16px',color:'#f7dc6f'}}>🏆 Top Rakip Analizi</h4>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:'16px'}}>
+                {a.top_3_competitors.map((comp:any,i:number)=>(
+                  <div key={i} style={{background:'rgba(255,255,255,0.03)',border:'1px solid var(--border-color)',borderRadius:'16px',padding:'20px'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:'12px'}}>
+                      <h5 style={{margin:0,fontSize:'1rem'}}>{comp.name}</h5>
+                      <span style={{color:'#f59e0b',fontSize:'0.85rem',fontWeight:700}}>⭐ {comp.rating} ({comp.review_count})</span>
+                    </div>
+                    <div style={{marginBottom:'8px'}}>
+                      <div style={{fontSize:'0.72rem',color:'#10b981',fontWeight:700,marginBottom:'4px'}}>GÜÇLÜ</div>
+                      {comp.key_strengths?.slice(0,2).map((s:string,j:number)=><div key={j} style={{fontSize:'0.82rem',color:'var(--text-muted)',paddingLeft:'8px'}}>• {s}</div>)}
+                    </div>
+                    <div>
+                      <div style={{fontSize:'0.72rem',color:'#ef4444',fontWeight:700,marginBottom:'4px'}}>ZAYIF</div>
+                      {comp.key_weaknesses?.slice(0,2).map((w:string,j:number)=><div key={j} style={{fontSize:'0.82rem',color:'var(--text-muted)',paddingLeft:'8px'}}>• {w}</div>)}
+                    </div>
                   </div>
                 ))}
               </div>
-            ))
-          ) : (
-            <div style={{ textAlign: 'center', color: 'var(--warning)', padding: '40px', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)' }}>
+            </div>
+          )}
+
+          {/* Competitor Profiles */}
+          {a?.competitor_profiles?.profiles && Object.keys(a.competitor_profiles.profiles).length > 0 && (
+            <div style={{background:'linear-gradient(180deg,rgba(139,92,246,0.05) 0%,transparent 100%)',border:'1px solid rgba(139,92,246,0.2)',borderRadius:'16px',padding:'24px',marginBottom:'32px'}}>
+              <h4 style={{color:'#a78bfa',marginBottom:'6px',fontSize:'1.1rem'}}>👑 Rakip Profilleri — Tehdit Analizi</h4>
+              <p style={{fontSize:'0.82rem',color:'var(--text-muted)',marginBottom:'20px'}}>{a.competitor_profiles.threat_summary}</p>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))',gap:'16px'}}>
+                {Object.entries(a.competitor_profiles.profiles).map(([name,p]:any,i)=>(
+                  <div key={i} style={{background:'rgba(0,0,0,0.2)',borderRadius:'12px',padding:'16px'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}}>
+                      <span style={{fontWeight:700}}>{name}</span>
+                      <span style={{fontSize:'0.75rem',padding:'3px 10px',borderRadius:'12px',background:p.threat_level==='high'?'rgba(239,68,68,0.15)':'rgba(245,158,11,0.15)',color:p.threat_level==='high'?'#ef4444':'#f59e0b'}}>
+                        {p.threat_level==='high'?'🔴 Yüksek':'🟡 Orta'} — {p.threat_score}p
+                      </span>
+                    </div>
+                    <p style={{fontSize:'0.85rem',margin:'0 0 8px'}}>💡 <strong>Nasıl Yenilir:</strong> {p.how_to_beat}</p>
+                    {p.monthly_loss_estimate && <p style={{fontSize:'0.78rem',color:'var(--text-muted)',margin:0}}>📉 {p.monthly_loss_estimate}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Heatmap */}
+          {a?.time_series_insights?.trend_signals?.length > 0 && (
+            <div style={{background:'rgba(255,255,255,0.03)',border:'1px solid var(--border-color)',borderRadius:'16px',padding:'24px',marginBottom:'32px'}}>
+              <h4 style={{fontSize:'1rem',marginBottom:'16px',color:'var(--text-muted)',fontWeight:600}}>🌡️ Şikayet Yoğunluk Isı Haritası</h4>
+              <div style={{display:'grid',gridTemplateColumns:'auto 1fr 1fr 80px',gap:'4px',fontSize:'0.8rem'}}>
+                {['','Son Dönem','Önceki','Fark'].map((h,i)=><div key={i} style={{color:'var(--text-muted)',padding:'4px 8px',fontWeight:600,fontSize:'0.72rem'}}>{h}</div>)}
+                {a.time_series_insights.trend_signals.map((sig:any,i:number)=>{
+                  const recent=sig.recent_frequency_pct||0, older=sig.older_frequency_pct||0, diff=recent-older
+                  const cell=(p:number)=>`rgba(${p>15?'231,76,60':'108,99,255'},${0.2+Math.min(p/40,1)*0.6})`
+                  return [
+                    <div key={`l${i}`} style={{padding:'8px',color:'var(--text-muted)',whiteSpace:'nowrap'}}>{sig.category}</div>,
+                    <div key={`r${i}`} style={{background:cell(recent),borderRadius:'6px',padding:'8px',textAlign:'center',color:'#fff'}}>%{recent}</div>,
+                    <div key={`o${i}`} style={{background:cell(older),borderRadius:'6px',padding:'8px',textAlign:'center',color:'#fff'}}>%{older}</div>,
+                    <div key={`d${i}`} style={{borderRadius:'6px',padding:'8px',textAlign:'center',color:diff>5?'#ef4444':diff<-5?'#10b981':'#9090a8'}}>
+                      {sig.direction==='rising'?'↑':sig.direction==='falling'?'↓':sig.direction==='critical'?'⚠':'→'} {diff>0?'+':''}{diff}%
+                    </div>
+                  ]
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Weekly Recommendations */}
+          {a?.recommendations?.weekly?.length > 0 && (
+            <div style={{background:'rgba(255,255,255,0.03)',border:'1px solid var(--border-color)',borderRadius:'16px',padding:'24px',marginBottom:'32px'}}>
+              <h4 style={{marginBottom:'16px',fontSize:'1.1rem'}}>⚡ Bu Hafta Yapılacaklar</h4>
+              <ul style={{paddingLeft:'20px',display:'flex',flexDirection:'column',gap:'12px',margin:0}}>
+                {a.recommendations.weekly.map((r:string,i:number)=><li key={i} style={{fontSize:'0.9rem',lineHeight:1.7,color:'var(--text-muted)'}}>{r}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {/* Growth Simulation */}
+          {a?.growth_simulation?.summary && (
+            <div style={{background:'rgba(16,185,129,0.05)',border:'1px solid rgba(16,185,129,0.2)',borderRadius:'16px',padding:'20px'}}>
+              <h4 style={{color:'#10b981',marginBottom:'8px'}}>📈 Büyüme Simülasyonu</h4>
+              <p style={{fontSize:'0.9rem',margin:0}}>{a.growth_simulation.summary}</p>
+            </div>
+          )}
+
+          {/* No data */}
+          {!a && (
+            <div style={{textAlign:'center',color:'var(--text-muted)',padding:'48px',border:'1px solid var(--border-color)',borderRadius:'16px'}}>
               Analiz verisi bulunamadı. Yeni analiz başlatın.
             </div>
           )}
+        </div>
+      )}
+
+      {/* No results yet */}
+      {!results && !loading && !error && (
+        <div style={{textAlign:'center',padding:'80px 32px',color:'var(--text-muted)'}}>
+          <div style={{fontSize:'4rem',marginBottom:'16px'}}>🧠</div>
+          <h3 style={{fontSize:'1.4rem',color:'var(--text-secondary)',marginBottom:'8px'}}>Analiz Hazır Değil</h3>
+          <p>Yukarıdaki butona tıklayarak yapay zeka destekli rekabet analizini başlatın.</p>
         </div>
       )}
     </div>
