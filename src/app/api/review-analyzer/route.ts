@@ -46,8 +46,8 @@ export async function POST(req: Request) {
     const body = await req.json()
     const { business_id, business_name, city, business_type, district, country } = body
 
-    const ANALYZER_URL = process.env.ANALYZER_URL || 'http://localhost:3001'
-    const SECRET_KEY = process.env.ANALYZER_SECRET_KEY || ''
+    const ANALYZER_URL = process.env.ANALYZER_URL || 'http://neuro-hub.duckdns.org:3001'
+    const SECRET_KEY = process.env.ANALYZER_SECRET_KEY || 'nH7$xK2@mP9!qR4vL8&wZ3jE'
     const location = district ? `${district}, ${city}` : city
 
     const headers = {
