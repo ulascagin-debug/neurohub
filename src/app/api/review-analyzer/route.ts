@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server'
+import prisma from '@/lib/prisma'
 
 export const maxDuration = 300 // 5 minutes timeout
 
@@ -43,7 +44,7 @@ const getSubsetName = (subset: string[], totalSize: number) => {
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const { business_name, city, business_type, district, country } = body
+    const { business_id, business_name, city, business_type, district, country } = body
 
     const ANALYZER_URL = process.env.ANALYZER_URL || 'http://localhost:3001'
     const SECRET_KEY = process.env.ANALYZER_SECRET_KEY || ''
@@ -173,12 +174,20 @@ export async function POST(req: Request) {
       }
     }
 
-    // Include the original flat "tam eşleşme" or first available result at the root just in case legacy UI components expect it temporarily
-    // But mainly return layeredResults as `layered_analysis`
-    const legacyFallback: any = finalResponse["Tam Eşleşme"] ? Object.values(finalResponse["Tam Eşleşme"])[0] : Object.values(Object.values(finalResponse)[0] as any)[0];
-    
+    // Auto-save to DB if business_id provided
+    if (business_id) {
+      try {
+        await prisma.reviewAnalysis.upsert({
+          where: { business_id },
+          update: { full_report: JSON.stringify({ layered_analysis: finalResponse }), updated_at: new Date() },
+          create: { business_id, full_report: JSON.stringify({ layered_analysis: finalResponse }) }
+        })
+      } catch (saveErr) {
+        console.error('[review-analyzer] DB save failed:', saveErr)
+      }
+    }
+
     return NextResponse.json({
-      ...(legacyFallback || {}),
       layered_analysis: finalResponse
     })
 

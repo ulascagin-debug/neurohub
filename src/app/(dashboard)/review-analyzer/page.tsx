@@ -19,7 +19,6 @@ export default function ReviewAnalyzerPage() {
   const [results, setResults] = useState<any>(null)
   const [error, setError] = useState('')
 
-  // Fetch business info
   useEffect(() => {
     if (!activeBusinessId) return
     fetch('/api/businesses')
@@ -32,19 +31,19 @@ export default function ReviewAnalyzerPage() {
         } else {
           setNeedsSetup(false)
         }
-        
-        // Also fetch previous analysis
-        if (!needsSetup) {
-           fetch(`/api/analyzer/analysis?business_id=${activeBusinessId}`)
-            .then(res => res.json())
-            .then(aData => {
-              if (aData.analysis) {
-                 setResults(aData.analysis)
-              }
-            })
-        }
+        // Load previous analysis from DB
+        fetch(`/api/analyzer/analysis?business_id=${activeBusinessId}`)
+          .then(res => res.json())
+          .then(aData => {
+            if (aData.analysis?.full_report) {
+              try {
+                const parsed = JSON.parse(aData.analysis.full_report)
+                setResults(parsed)
+              } catch {}
+            }
+          })
       })
-  }, [activeBusinessId, needsSetup])
+  }, [activeBusinessId])
 
   // Fake progress timer during analysis
   useEffect(() => {
@@ -114,6 +113,7 @@ export default function ReviewAnalyzerPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          business_id: activeBusinessId,
           business_name: business.name,
           business_type: business.business_type || '',
           city: parts[parts.length - 1]?.trim() || '',
@@ -123,8 +123,6 @@ export default function ReviewAnalyzerPage() {
 
       const data = await resp.json()
       if (!resp.ok) throw new Error(data.error || 'Analiz başarısız')
-      
-      // MOCK DB SAVE (You would normally save data to your /api/analyzer/analysis PUT route here)
       setResults(data)
 
     } catch (e: any) {
