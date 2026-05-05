@@ -294,7 +294,7 @@ export function BusinessSelectorModal({ isOpen, onClose }: ModalProps) {
                 <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
                   <div className="loading-spinner" style={{ margin: '0 auto 15px' }} />
                   <p style={{ margin: 0, fontWeight: 500 }}>{searchProgress}</p>
-                  <p style={{ fontSize: '0.8rem', marginTop: '8px', opacity: 0.6 }}>Google Maps üzerinden yerel işletmeler taranıyor...</p>
+                  <p style={{ fontSize: '0.8rem', marginTop: '8px', opacity: 0.6 }}>Google Maps'te çoklu arama yapılıyor, lütfen bekleyin...</p>
                 </div>
               )}
 
