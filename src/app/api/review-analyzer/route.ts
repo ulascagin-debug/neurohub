@@ -1,201 +1,143 @@
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-
-export const maxDuration = 300 // 5 minutes timeout
-
-const generateSubsets = (array: string[]): string[][] => {
-  const result: string[][] = [];
-  const n = array.length;
-  for (let i = 1; i < (1 << n); i++) {
-    const subset: string[] = [];
-    for (let j = 0; j < n; j++) {
-      if (i & (1 << j)) {
-        subset.push(array[j]);
-      }
-    }
-    result.push(subset);
-  }
-  return result;
-}
-
-const chunkArray = <T>(arr: T[], size: number): T[][] => {
-  return Array.from({ length: Math.ceil(arr.length / size) }, (v, i) =>
-    arr.slice(i * size, i * size + size)
-  );
-}
-
-const getGroupName = (subsetSize: number, totalSize: number) => {
-  if (subsetSize === totalSize && totalSize > 1) return "Tam Eşleşme";
-  if (subsetSize === 1) return "Tekli Analiz";
-  if (subsetSize === 2) return "İkili Analiz";
-  if (subsetSize === 3) return "Üçlü Analiz";
-  if (subsetSize === 4) return "Dörtlü Analiz";
-  return "Tam Eşleşme";
-}
-
-const getSubsetName = (subset: string[], totalSize: number) => {
-  if (subset.length === totalSize && totalSize > 1) {
-    return `${subset.join(' + ')} olanlar`;
-  }
-  return `Sadece ${subset.join(' + ')} olanlar`;
-}
 
 export async function POST(req: Request) {
   try {
     const body = await req.json()
     const { business_id, business_name, city, business_type, district, country } = body
 
+    if (!business_name || !city) {
+      return NextResponse.json({ error: 'business_name ve city gerekli' }, { status: 400 })
+    }
+
     const ANALYZER_URL = process.env.ANALYZER_URL || 'http://neuro-hub.duckdns.org:3001'
     const SECRET_KEY = process.env.ANALYZER_SECRET_KEY || 'nH7$xK2@mP9!qR4vL8&wZ3jE'
-    const location = district ? `${district}, ${city}` : city
-
     const headers = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${SECRET_KEY}`
     }
 
-    const categories = business_type ? business_type.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
-    
-    // If no specific categories, fallback to purely business name based single search
-    if (categories.length === 0) {
-      categories.push("");
+    const categories = business_type
+      ? business_type.split(',').map((s: string) => s.trim()).filter(Boolean)
+      : []
+    const primaryCategory = categories[0] || business_name
+
+    // ── STEP 1: ONE search call to find competitors ──
+    console.log(`[review-analyzer] Searching: ${primaryCategory} in ${district}, ${city}`)
+    const searchResp = await fetch(`${ANALYZER_URL}/search`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        category: primaryCategory,
+        city,
+        district: district || '',
+        country: country || 'Turkey',
+        max_businesses: 15,
+      }),
+      // @ts-ignore
+      signal: AbortSignal.timeout(120000), // 2 min max
+    })
+
+    if (!searchResp.ok) {
+      const err = await searchResp.json().catch(() => ({}))
+      return NextResponse.json({ error: err.error || 'İşletme araması başarısız' }, { status: 502 })
     }
 
-    // Limit to max 5 to prevent more than 31 combinations
-    const limitedCategories = categories.slice(0, 5);
-    const subsets = generateSubsets(limitedCategories);
+    const searchData = await searchResp.json()
+    const foundBusinesses: any[] = searchData.businesses || []
+    console.log(`[review-analyzer] Found ${foundBusinesses.length} businesses`)
 
-    const layeredResults: any = {
-      "Tekli Analiz": {},
-      "İkili Analiz": {},
-      "Üçlü Analiz": {},
-      "Dörtlü Analiz": {},
-      "Tam Eşleşme": {}
-    };
-
-    const processSubset = async (subset: string[]) => {
-      const subsetString = subset.join(', ');
-      
-      // --- STEP 1: Search for real competitors ---
-      // Use ONLY the category (not business name) to find competitors in the area
-      const searchCategory = subsetString || business_name;
-      
-      const searchResponse = await fetch(`${ANALYZER_URL}/search`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          category: searchCategory,
-          city,
-          district: district || '',
-          country: country || 'Turkey',
-          max_businesses: 20,
-        }),
-      })
-
-      if (!searchResponse.ok) return null;
-
-      const startData = await searchResponse.json()
-      const foundBusinesses = startData.businesses || []
-
-      if (foundBusinesses.length === 0) return null;
-
-      let targetBusinessUrl = ""
-      const normalizedTargetName = business_name.toLowerCase().replace(/[^a-z0-9]/g, '')
-      
-      for (const b of foundBusinesses) {
-        const bName = (b.name || '').toLowerCase().replace(/[^a-z0-9]/g, '')
-        if (bName.includes(normalizedTargetName) || normalizedTargetName.includes(bName)) {
-           targetBusinessUrl = b.url || ""
-           break
-        }
-      }
-
-      const competitorUrls = foundBusinesses
-        .filter((b: any) => b.url !== targetBusinessUrl && b.url != null)
-        .slice(0, 5)
-        .map((b: any) => b.url)
-
-      if (competitorUrls.length === 0) return null;
-
-      // --- STEP 2: Deep Analysis ---
-      const analyzeResponse = await fetch(`${ANALYZER_URL}/analyze`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          category: subsetString,
-          city: city,
-          district: district || '',
-          country: country || 'Turkey',
-          target_business_url: targetBusinessUrl || null,
-          competitor_urls: competitorUrls
-        }),
-      })
-
-      if (!analyzeResponse.ok) return null;
-
-      return await analyzeResponse.json();
-    };
-
-    // Run combinations in chunks of 3 to avoid crashing python server
-    const chunks = chunkArray(subsets, 3);
-    
-    // We'll track at least one success
-    let anySuccess = false;
-
-    for (const chunk of chunks) {
-      const promises = chunk.map(async (subset) => {
-        try {
-          const result = await processSubset(subset);
-          if (result) {
-            const groupName = getGroupName(subset.length, limitedCategories.length);
-            const subsetName = getSubsetName(subset, limitedCategories.length);
-            
-            if (!layeredResults[groupName]) {
-              layeredResults[groupName] = {};
-            }
-            layeredResults[groupName][subsetName] = result;
-            anySuccess = true;
-          }
-        } catch (err) {
-          console.error(`Failed to process subset: ${subset.join(', ')}`, err);
-        }
-      });
-
-      await Promise.all(promises);
+    if (foundBusinesses.length === 0) {
+      return NextResponse.json({ error: 'Bu bölgede rakip işletme bulunamadı.' }, { status: 404 })
     }
 
-    if (!anySuccess) {
-       return NextResponse.json({ error: "Hiçbir kombinasyon için yeterli rakip/analiz bulunamadı." }, { status: 404 })
-    }
-
-    // Clean up empty objects
-    const finalResponse: any = {};
-    for (const key of Object.keys(layeredResults)) {
-      if (Object.keys(layeredResults[key]).length > 0) {
-        finalResponse[key] = layeredResults[key];
+    // Find target business URL (exclude from competitor list)
+    const normalized = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+    const targetNorm = normalized(business_name)
+    let targetBusinessUrl = ''
+    for (const b of foundBusinesses) {
+      const bn = normalized(b.name || '')
+      if (bn.includes(targetNorm) || targetNorm.includes(bn)) {
+        targetBusinessUrl = b.url || ''
+        break
       }
     }
 
-    // Auto-save to DB if business_id provided
+    const competitorUrls = foundBusinesses
+      .filter((b: any) => b.url && b.url !== targetBusinessUrl)
+      .slice(0, 8)
+      .map((b: any) => b.url)
+
+    if (competitorUrls.length === 0) {
+      return NextResponse.json({ error: 'Rakip işletme bulunamadı (yalnızca kendi işletmeniz listelendi).' }, { status: 404 })
+    }
+
+    // ── STEP 2: ONE analyze call for all categories ──
+    const categoryStr = categories.join(', ') || primaryCategory
+    console.log(`[review-analyzer] Analyzing ${competitorUrls.length} competitors for: ${categoryStr}`)
+
+    const analyzeResp = await fetch(`${ANALYZER_URL}/analyze`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        category: categoryStr,
+        city,
+        district: district || '',
+        country: country || 'Turkey',
+        target_business_url: targetBusinessUrl || null,
+        competitor_urls: competitorUrls,
+      }),
+      // @ts-ignore
+      signal: AbortSignal.timeout(240000), // 4 min max
+    })
+
+    if (!analyzeResp.ok) {
+      const err = await analyzeResp.json().catch(() => ({}))
+      return NextResponse.json({ error: err.error || 'Analiz başarısız' }, { status: 502 })
+    }
+
+    const analysisData = await analyzeResp.json()
+
+    if (analysisData.error) {
+      console.error('[review-analyzer] Analyzer error:', analysisData.error)
+      return NextResponse.json({ error: analysisData.error }, { status: 422 })
+    }
+
+    // ── STEP 3: Wrap in layered_analysis format for UI ──
+    const groupKey = categories.length > 1 ? 'Kombine Analiz' : 'Tekli Analiz'
+    const subsetKey = categories.length > 0 ? categories.join(' + ') + ' Analizi' : 'Genel Analiz'
+
+    const finalResult = {
+      layered_analysis: {
+        [groupKey]: {
+          [subsetKey]: analysisData
+        }
+      }
+    }
+
+    // ── STEP 4: Save to DB ──
     if (business_id) {
       try {
         await prisma.reviewAnalysis.upsert({
           where: { business_id },
-          update: { full_report: JSON.stringify({ layered_analysis: finalResponse }), updated_at: new Date() },
-          create: { business_id, full_report: JSON.stringify({ layered_analysis: finalResponse }) }
+          update: { full_report: JSON.stringify(finalResult), updated_at: new Date() },
+          create: { business_id, full_report: JSON.stringify(finalResult) }
         })
-      } catch (saveErr) {
-        console.error('[review-analyzer] DB save failed:', saveErr)
+        console.log(`[review-analyzer] Saved analysis for business ${business_id}`)
+      } catch (dbErr) {
+        console.error('[review-analyzer] DB save failed:', dbErr)
       }
     }
 
-    return NextResponse.json({
-      layered_analysis: finalResponse
-    })
+    return NextResponse.json(finalResult)
 
   } catch (error: any) {
-    console.error("[review-analyzer] Overall pipeline failed:", error)
-    return NextResponse.json({ error: error.message || 'Bilinmeyen bir hata oluştu' }, { status: 500 })
+    console.error('[review-analyzer] Pipeline error:', error)
+    if (error.name === 'TimeoutError' || error.message?.includes('timeout')) {
+      return NextResponse.json({ error: 'Analiz süresi aşıldı. Lütfen tekrar deneyin.' }, { status: 504 })
+    }
+    return NextResponse.json({ error: error.message || 'Bilinmeyen hata' }, { status: 500 })
   }
 }
