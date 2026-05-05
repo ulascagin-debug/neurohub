@@ -51,9 +51,8 @@ export async function POST(req: Request) {
       if (!lat || !lng) return NextResponse.json({ error: 'Missing lat/lng' }, { status: 400 });
 
       const catArray: string[] = Array.isArray(categories) ? categories : [categories];
-      const tags: string[] = [...new Set(
-        catArray.flatMap(cat => OSM_CATEGORY_TAGS[cat] ?? [`amenity=${cat.toLowerCase()}`])
-      )];
+      const rawTags = catArray.flatMap(cat => OSM_CATEGORY_TAGS[cat] ?? [`amenity=${cat.toLowerCase()}`]);
+      const tags: string[] = Array.from(new Set(rawTags));
 
       const query = buildOverpassQuery(tags, lat, lng, radius);
       const overpassRes = await fetch('https://overpass-api.de/api/interpreter', {
