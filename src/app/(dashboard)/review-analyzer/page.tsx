@@ -183,9 +183,13 @@ export default function ReviewAnalyzerPage() {
                     {/* Stat Cards */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '16px', marginBottom: '32px' }}>
                       <div className="glass-panel stat-card area-card green">
-                        <div className="stat-label">Kanıtlı Fırsatlar</div>
-                        <div className="stat-value">{a.evidence_chains?.high_confidence_count ?? Object.keys(a.competitor_profiles?.profiles || {}).length ?? 0}</div>
-                        <div className="stat-sub">Yüksek güven skoru</div>
+                        <div className="stat-label">Rakip Analizi</div>
+                        <div className="stat-value">
+                          {a.top_3_competitors?.length ||
+                           Object.keys(a.competitor_profiles?.profiles || {}).length ||
+                           a.competitors?.length || 0}
+                        </div>
+                        <div className="stat-sub">Analiz edilen rakip</div>
                       </div>
                       <div className="glass-panel stat-card area-card amber">
                         <div className="stat-label">Rakip Sorunları</div>
